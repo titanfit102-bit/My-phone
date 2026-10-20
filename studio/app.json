@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "My Phone Studio",
+    "slug": "my-phone-studio",
+    "scheme": "myphonestudio",
+    "version": "0.3.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#080D1A",
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "name": "My Phone Developer Studio",
+      "shortName": "My Phone Studio",
+      "output": "single",
+      "bundler": "metro"
+    },
+    "experiments": {
+      "tsconfigPaths": true
+    }
+  }
+}
