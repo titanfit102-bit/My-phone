@@ -21,6 +21,10 @@ function viaIds(name, vulnerabilities, visited = new Set()) {
       continue;
     }
     if (item && typeof item === "object") {
+      // npm may attach a MODERATE root advisory to a HIGH transitive package.
+      // Independently track HIGH/CRITICAL roots here; lower severity alone
+      // must never become an unexplained high. New HIGH roots still fail.
+      if (item.severity !== "high" && item.severity !== "critical") continue;
       const match = String(item.url || "").match(/GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}/i);
       ids.push(match ? match[0] : "UNKNOWN_DIRECT_ADVISORY");
     }
