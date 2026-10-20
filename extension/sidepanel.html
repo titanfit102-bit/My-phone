@@ -3,19 +3,77 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My Phone Live Preview</title>
+  <meta name="color-scheme" content="light">
+  <title>My Phone — Preview Studio</title>
   <link rel="stylesheet" href="sidepanel.css">
-  <script src="sidepanel.js" defer></script>
+  <script type="module" src="sidepanel.js"></script>
 </head>
 <body>
-  <header><div class="logo">M</div><div><h1>My Phone</h1><p>Live Preview Bridge</p></div><span class="live">DEMO</span></header>
-  <form id="connectForm">
-    <label for="previewUrl">URL e aplikacionit në Vercel</label>
-    <input type="url" id="previewUrl" placeholder="https://my-demo.vercel.app" spellcheck="false" required>
-    <button type="submit" id="connectButton">Lidh demonstrimin</button>
-  </form>
-  <div class="toolbar"><span id="status" role="status" aria-live="polite">Vendos URL e demos për të filluar.</span><button type="button" id="reloadButton" title="Rifresko" disabled>↻</button></div>
-  <div class="preview-wrap"><div id="placeholder"><span>▣</span><strong>Demonstrimi do të shfaqet këtu</strong><small>Së pari publiko web demo në Vercel dhe lidhe URL-në këtu.</small></div><iframe id="previewFrame" title="My Phone demo" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms" hidden></iframe></div>
-  <footer><span id="revision">Versioni: —</span><span>Kontroll çdo ~15 sek.</span></footer>
+  <header class="app-header">
+    <div class="brand-icon" aria-hidden="true">M<span>.</span></div>
+    <div class="brand-text"><strong>MY PHONE</strong><small>PREVIEW STUDIO</small></div>
+    <span class="header-tag">BETA 0.2</span>
+  </header>
+  <main class="app-main">
+    <div class="section-head"><span>HAPËSIRA JOTE</span><span id="projectCount">0 projekte</span></div>
+    <div class="project-picker">
+      <label class="visually-hidden" for="projectSelect">Zgjidh aplikacionin</label>
+      <select id="projectSelect" aria-label="Projekti aktiv"><option value="">Zgjidh projektin</option></select>
+      <button id="newProject" class="btn-add" type="button" aria-label="Shto projekt të ri" title="Shto projekt">+</button>
+    </div>
+    <section id="editor" class="editor" hidden aria-label="Konfiguro projekt">
+      <div class="editor-heading"><h2 id="editorTitle">Shto aplikacion</h2><button id="cancelEditor" class="close-button" type="button" aria-label="Mbyll formularin">×</button></div>
+      <form id="projectForm">
+        <label for="projectName">Emri i aplikacionit</label>
+        <input id="projectName" name="projectName" maxlength="64" required placeholder="P.sh. Dating App" autocomplete="off">
+        <label for="githubUrl">Repository GitHub</label>
+        <input id="githubUrl" name="githubUrl" type="url" required placeholder="https://github.com/pronari/aplikacioni" spellcheck="false" autocomplete="off">
+        <label for="previewUrl">Adresa e demos (Vercel / HTTPS)</label>
+        <input id="previewUrl" name="previewUrl" type="url" required placeholder="https://aplikacioni.vercel.app" spellcheck="false" autocomplete="off">
+        <p class="form-hint">GitHub ruan kodin. Vercel ose hosti yt e publikon. My Phone shfaq URL-në e publikuar.</p>
+        <p id="formError" class="form-error" role="alert" hidden></p>
+        <button id="saveProject" class="btn-primary" type="submit">Ruaj dhe lidhe projektin <span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
+    <section id="emptyState" class="empty-state">
+      <div class="empty-art"><span>◇</span></div>
+      <h2>Idetë e tua, në një ekran.</h2>
+      <p>Lidh një aplikacion GitHub me versionin e publikuar dhe ndiq ndryshimet këtu.</p>
+      <button id="emptyAdd" type="button" class="btn-primary">+ Shto aplikacionin e parë</button>
+      <div class="empty-steps"><span>01 · GitHub</span><span>02 · Deploy</span><span>03 · Preview</span></div>
+    </section>
+    <section id="workspace" hidden>
+      <div class="project-meta">
+        <div class="meta-title"><span class="indicator" id="indicator"></span><strong id="activeName">Aplikacioni</strong></div>
+        <div class="project-actions">
+          <button type="button" class="icon-button" id="editProject" title="Ndrysho lidhjen" aria-label="Ndrysho projektin">✎</button>
+          <button type="button" class="icon-button danger" id="deleteProject" title="Hiq nga My Phone" aria-label="Hiq projektin">×</button>
+        </div>
+      </div>
+      <div class="link-row">
+        <a id="githubLink" target="_blank" rel="noopener noreferrer">↗ GitHub</a>
+        <a id="historyLink" target="_blank" rel="noopener noreferrer">↗ Versionet</a>
+        <button type="button" id="openTab">↗ Hap në tab</button>
+      </div>
+      <div class="device-bar">
+        <div class="device-label"><span class="live-dot"></span> LIVE PREVIEW</div>
+        <div class="device-actions"><button type="button" id="reloadButton" title="Rifresko tani" aria-label="Rifresko demon">↻</button><button type="button" id="grantPermission" hidden>Lejo sinkronizimin</button></div>
+      </div>
+      <div class="device-frame" id="deviceFrame">
+        <div class="device-top" aria-hidden="true"><span class="notch"></span></div>
+        <div class="preview-container">
+          <iframe id="previewFrame" title="Demonstrimi i aplikacionit" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms" hidden></iframe>
+          <div id="previewPlaceholder" class="preview-placeholder"><div class="spinner"></div><strong>Duke hapur demon...</strong></div>
+        </div>
+        <div class="device-bottom" aria-hidden="true"><span></span></div>
+      </div>
+      <div class="sync-panel">
+        <div class="sync-line"><span id="syncStatus" role="status" aria-live="polite">Po lidhemi me demonstrimin...</span><span id="revision">—</span></div>
+        <div class="sync-detail"><span id="lastChecked">Kontroll automatik çdo 15 sekonda</span></div>
+      </div>
+      <p class="compatibility-note">Nëse demonstrimi nuk shfaqet, përdor “Hap në tab”. Disa faqe ndalojnë shfaqjen në iframe.</p>
+    </section>
+  </main>
+  <footer><span>MY PHONE STUDIO</span><span id="footerStatus">Projektet ruhen në Chrome</span></footer>
 </body>
 </html>
