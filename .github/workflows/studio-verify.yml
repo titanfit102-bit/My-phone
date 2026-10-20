@@ -29,9 +29,18 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: studio/package.json
+          cache-dependency-path: studio/package-lock.json
       - name: Install isolated Expo dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+      - name: Verify dependency graph
+        run: npm ls --depth=0
+      # Keep high-severity findings visible, without forcing a breaking Expo downgrade.
+      # The security findings require a separate, authorized dependency-upgrade PR.
+      - name: Report high and critical production dependency advisories
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+      - name: Block critical production dependency advisories
+        run: npm audit --omit=dev --audit-level=critical
       - name: Verify registry model
         run: npm run check:config
       - name: Check TypeScript
