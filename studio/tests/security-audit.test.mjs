@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {evaluateAudit,BASELINE_HIGH_COUNT} from "../scripts/verify-security-audit.mjs";
 const make=(vulnerabilities,counts={critical:0,high:0,moderate:0})=>
   ({metadata:{vulnerabilities:counts},vulnerabilities});
-const root=(url, severity="high")=>({severity,via:[{url}]});
+const root=(url, severity="high")=>({severity,via:[{url,severity}]});
 const braces="https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
 const forge="https://github.com/advisories/GHSA-86w9-cpqp-85rv";
 test("clean npm audit passes",()=>assert.equal(evaluateAudit(make({})).pass,true));
