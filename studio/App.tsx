@@ -67,7 +67,7 @@ export default function App() {
   const [revision,setRevision] = useState(1);
   const [syncEnabled,setSyncEnabled] = useState(true);
   const [lastUpdate,setLastUpdate] = useState<string|null>(null);
-  const [syncState,setSyncState] = useState(initialSyncState());
+  const [syncState,setSyncState] = useState<ReturnType<typeof initialSyncState> & {revision:string|null}>(initialSyncState());
 
   useEffect(()=> {
     const state = safeLoad();
