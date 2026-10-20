@@ -20,6 +20,14 @@ test("unexpected high severity advisory cannot be suppressed by baseline",()=>{
     {critical:0,high:1,moderate:0}));
  assert.equal(r.pass,false);assert.equal(r.blocking[0].package,"other");
 });
+test("a moderate advisory on a high transitive path is classified separately",()=>{
+ const moderate={url:"https://github.com/advisories/GHSA-w5hq-g745-h8pq",severity:"moderate"};
+ const v={braces:root(braces), uuid:{severity:"moderate",via:[moderate]},
+  expo:{severity:"high",via:["braces","uuid"]}};
+ const r=evaluateAudit(make(v,{critical:0,high:2,moderate:1}),"2026-10-21");
+ assert.equal(r.pass,true);
+ assert.equal(r.exceptional.length,2);
+});
 test("critical always blocks even if advisory is reviewed",()=>{
  const r=evaluateAudit(make({braces:root(braces,"critical")},{critical:1,high:0,moderate:0}));
  assert.equal(r.pass,false);
