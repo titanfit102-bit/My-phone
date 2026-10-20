@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "My Phone — Live Preview",
+  "description": "Shows your own deployed app demo and refreshes when a new build is available.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "action": {"default_title": "Open My Phone Live Preview"},
+  "permissions": ["sidePanel", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": {"service_worker": "background.js"},
+  "side_panel": {"default_path": "sidepanel.html"}
+}
