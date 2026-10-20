@@ -13,6 +13,10 @@ import {
 type Project = {id:string;name:string;github:string;web:string;native:string};
 type Mode = "web" | "native";
 type Draft = {name:string;github:string;web:string;native:string};
+type DeploymentSync = {
+  phase:string; strategy:string; revision:string|null; fingerprint:string|null;
+  builtAt:string|null; checkedAt:number|null; changedAt:number|null; failures:number;
+};
 const EMPTY:Draft = {name:"",github:"",web:"",native:""};
 const C = {
   base:"#080D1A", panel:"#101A2C", elevated:"#17243A", outline:"#26334C",
@@ -67,7 +71,7 @@ export default function App() {
   const [revision,setRevision] = useState(1);
   const [syncEnabled,setSyncEnabled] = useState(true);
   const [lastUpdate,setLastUpdate] = useState<string|null>(null);
-  const [syncState,setSyncState] = useState<ReturnType<typeof initialSyncState> & {revision:string|null}>(initialSyncState());
+  const [syncState,setSyncState] = useState<DeploymentSync>(initialSyncState());
 
   useEffect(()=> {
     const state = safeLoad();
