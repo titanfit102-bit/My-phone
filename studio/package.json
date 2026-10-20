@@ -1,12 +1,12 @@
 {
   "name": "my-phone-expo-studio",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "main": "expo/AppEntry",
   "scripts": {
     "start": "expo start",
     "web": "expo start --web",
-    "export:web": "expo export --platform web",
+    "export:web": "expo export --platform web && node scripts/emit-build-info.mjs",
     "check:config": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
@@ -22,5 +22,7 @@
     "@types/react": "~19.2.0",
     "typescript": "~5.9.0"
   },
-  "engines": {"node": ">=22.13.0"}
+  "engines": {
+    "node": ">=22.13.0"
+  }
 }
