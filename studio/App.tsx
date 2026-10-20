@@ -56,6 +56,7 @@ export default function App() {
   const [mode,setMode] = useState<Mode>("web");
   const [formOpen,setFormOpen] = useState(false);
   const [editing,setEditing] = useState<string|null>(null);
+  const [pendingRemoval,setPendingRemoval] = useState<string|null>(null);
   const [draft,setDraft] = useState<Draft>(EMPTY);
   const [error,setError] = useState("");
   const [loaded,setLoaded] = useState(false);
@@ -95,18 +96,23 @@ export default function App() {
   const save = () => {
     try {
       const value = newProject(draft, editing || newId()) as Project;
+      if (isWeb && value.web && typeof window !== "undefined" &&
+          new URL(value.web).origin === window.location.origin)
+        throw new Error("Mos përdor adresën e vetë studios si demo: iframe në të njëjtin origin nuk lejohet.");
       const next=editing ? projects.map(p=>p.id===editing?value:p) : [...projects,value];
       setProjects(next);setSelected(value.id);setMode(chooseMode(value,mode) as Mode);
       setFormOpen(false);setEditing(null);setError("");setRevision(r=>r+1);
     } catch(e) {setError(e instanceof Error?e.message:"Të dhënat nuk u pranuan.");}
   };
   const remove = (project:Project) => {
-    // This removes a local bookmark only. Never delete the source repository or deployments.
+    // Require a second explicit click. This removes a local bookmark, never source code.
+    if(pendingRemoval!==project.id){setPendingRemoval(project.id);return;}
+    setPendingRemoval(null);
     const next=projects.filter(p=>p.id!==project.id);
     setProjects(next);setSelected(next[0]?.id || null);setFormOpen(false);
   };
   const pick = (project:Project) => {
-    setSelected(project.id);setFormOpen(false);setMode(chooseMode(project,mode) as Mode);
+    setSelected(project.id);setFormOpen(false);setPendingRemoval(null);setMode(chooseMode(project,mode) as Mode);
     setRevision(r=>r+1);
   };
   const previewWidth = currentMode==="web" ? 382 : 434;
@@ -170,7 +176,7 @@ export default function App() {
             </View>
             <View style={styles.linkRow}>
               <RoundButton label="✎ Ndrysho" onPress={()=>edit(current)}/>
-              <RoundButton label="Hiq nga lista" danger onPress={()=>remove(current)}/>
+              <RoundButton label={pendingRemoval===current.id?"Konfirmo heqjen":"Hiq nga lista"} danger onPress={()=>remove(current)}/>
             </View>
             <Text style={styles.fieldHint}>Heqja prek vetëm listën lokale të studios.</Text>
           </View>}
