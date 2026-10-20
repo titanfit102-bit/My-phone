@@ -23,10 +23,10 @@ Nuk e kemi verifikuar ende përmes instalimit real në Chrome ose me një deploy
 
 ## Instalimi për përdorim personal
 
-1. Shkarko repository-n e `My-phone` nga GitHub (`Code → Download ZIP`) dhe nxirre ZIP-in.
+1. Hap `Actions → Verify My Phone` në GitHub, zgjidh ekzekutimin më të fundit të suksesshëm dhe shkarko `my-phone-extension` te **Artifacts**. Nxirre ZIP-in në një dosje. Alternativisht, shkarko të gjithë repository-n nga `Code → Download ZIP` dhe nxirr dosjen `extension`.
 2. Hap Chrome → `chrome://extensions`.
 3. Aktivizo `Developer mode`.
-4. Kliko `Load unpacked` dhe zgjidh dosjen `extension` brenda projektit të nxjerrë.
+4. Kliko `Load unpacked` dhe zgjidh dosjen që përmban direkt `manifest.json`.
 5. Hap panelin nga ikona My Phone.
 6. Shto projektin tënd duke vendosur GitHub URL dhe **URL e publikuar HTTPS** nga Vercel, pastaj prano lejen e Chrome.
 
