@@ -1,0 +1,25 @@
+name: Verify My Phone
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run tests
+        run: npm test
+      - name: Build example web demo
+        run: npm run build
+      - name: Verify deploy metadata
+        run: node -e "const x=require('./dist/build-info.json');if(!x.revision||!x.builtAt)process.exit(1)"
