@@ -40,3 +40,10 @@ jobs:
         run: npm run export:web
       - name: Verify static output
         run: node -e "const f=require('node:fs');if(!f.existsSync('dist/index.html'))process.exit(1)"
+      - name: Archive Expo Web export for visual smoke tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-phone-expo-web-dist
+          path: studio/dist/
+          if-no-files-found: error
+          retention-days: 7
