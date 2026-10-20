@@ -5,6 +5,10 @@ import {
 } from "react-native";
 import PreviewHost from "./src/PreviewHost";
 import {STORAGE_KEY, newProject, loadProjects, chooseMode, freshWebUrl} from "./src/project-model";
+import {
+  SYNC_POLL_MS, FALLBACK_REFRESH_MS, FETCH_TIMEOUT_MS, MAX_MANIFEST_BYTES,
+  manifestUrl, parseManifest, initialSyncState, transitionSync, summarizeSync
+} from "./src/live-sync";
 
 type Project = {id:string;name:string;github:string;web:string;native:string};
 type Mode = "web" | "native";
@@ -63,6 +67,7 @@ export default function App() {
   const [revision,setRevision] = useState(1);
   const [syncEnabled,setSyncEnabled] = useState(true);
   const [lastUpdate,setLastUpdate] = useState<string|null>(null);
+  const [syncState,setSyncState] = useState(initialSyncState());
 
   useEffect(()=> {
     const state = safeLoad();
@@ -74,12 +79,69 @@ export default function App() {
   const current = projects.find(p=>p.id===selected) || null;
   const currentMode = current ? chooseMode(current,mode) as Mode : mode;
   const reload = useCallback(()=>{setRevision(r=>r+1);setLastUpdate(new Date().toLocaleTimeString("sq-AL"));},[]);
-  // This is a passive WEB reload, NOT a guarantee that Vercel has completed its build.
-  // An Appetize buildId remains pinned to the uploaded APK until its link is updated.
+  // Read-only deploy observation. Browser CORS rules can block private deployments.
+  // A successful manifest confirms only the published revision, NOT GitHub CI status.
   useEffect(()=>{
-    if(!current || !syncEnabled || currentMode!=="web" || !current.web || !isWeb) return;
-    const timer = setInterval(()=>reload(),30000);
-    return ()=>clearInterval(timer);
+    if(!isWeb || !current?.web || currentMode!=="web" || !syncEnabled) {
+      setSyncState({...initialSyncState(),phase:!syncEnabled?"paused":"checking"});
+      return;
+    }
+    let stopped = false;
+    let inFlight = false;
+    let request:AbortController|null = null;
+    let snapshot = initialSyncState();
+    let lastFallback = Date.now();
+    setSyncState(snapshot);
+    async function check() {
+      if(stopped || inFlight || (typeof document!=="undefined" && document.visibilityState==="hidden")) return;
+      inFlight = true;
+      const abort = new AbortController();
+      request = abort;
+      const timeout = setTimeout(()=>abort.abort(), FETCH_TIMEOUT_MS);
+      let outcome: {kind:"published"|"unsupported"|"restricted"|"unreachable";manifest?:ReturnType<typeof parseManifest>} = {kind:"unreachable"};
+      try {
+        const response = await fetch(manifestUrl(current!.web), {
+          signal:abort.signal,cache:"no-store",credentials:"omit",headers:{Accept:"application/json"}
+        });
+        if(response.status===404 || response.status===405) outcome={kind:"unsupported"};
+        else if(response.status===401 || response.status===403) outcome={kind:"restricted"};
+        else if(response.ok) {
+          const length = Number(response.headers.get("content-length")||"0");
+          if(length>MAX_MANIFEST_BYTES) outcome={kind:"unsupported"};
+          else {
+            const body = await response.text();
+            if(body.length>MAX_MANIFEST_BYTES) outcome={kind:"unsupported"};
+            else {
+              let parsed = null;
+              try {parsed=parseManifest(JSON.parse(body));} catch {}
+              outcome=parsed?{kind:"published",manifest:parsed}:{kind:"unsupported"};
+            }
+          }
+        }
+      } catch {
+        // A network error or blocked CORS response does not imply build failure.
+        outcome={kind:"unreachable"};
+      } finally {
+        clearTimeout(timeout);
+        if(request===abort) request=null;
+        inFlight=false;
+      }
+      if(stopped) return; // Ignore late responses from another selected project.
+      const next = transitionSync(snapshot,outcome,Date.now());
+      snapshot = next.state;
+      setSyncState(next.state);
+      if(next.reload) {
+        reload();
+        lastFallback=Date.now();
+      } else if(next.state.strategy==="fallback" &&
+                Date.now()-lastFallback>=FALLBACK_REFRESH_MS) {
+        reload();
+        lastFallback=Date.now();
+      }
+    }
+    void check();
+    const timer=setInterval(()=>{void check();},SYNC_POLL_MS);
+    return ()=>{stopped=true;clearInterval(timer);request?.abort();};
   },[current?.id,current?.web,currentMode,syncEnabled,reload]);
   const previewUrl = useMemo(()=>{
     if(!current) return "";
@@ -116,6 +178,8 @@ export default function App() {
     setRevision(r=>r+1);
   };
   const previewWidth = currentMode==="web" ? 382 : 434;
+  const syncSummary = summarizeSync(syncState);
+  const readableTime = (time:number|null) => time ? new Date(time).toLocaleTimeString("sq-AL") : "—";
   return (
     <View style={styles.app}>
       <View style={styles.topbar}>
@@ -123,7 +187,7 @@ export default function App() {
           <View><Text style={styles.brandTitle}>MY PHONE <Text style={{color:C.accent}}>STUDIO</Text></Text>
             <Text style={styles.brandSubtitle}>EXPO · WEB + ANDROID CLOUD</Text></View>
         </View>
-        <View style={styles.topright}><Badge good>STUDIO v0.3</Badge><Text style={styles.topHint}>GitHub → Build → Preview</Text></View>
+        <View style={styles.topright}><Badge good>STUDIO v0.4</Badge><Text style={styles.topHint}>GitHub → Build → Preview</Text></View>
       </View>
       <View style={[styles.main,isCompact&&styles.mainMobile]}>
         <ScrollView contentContainerStyle={styles.sidebarContent}
@@ -201,8 +265,37 @@ export default function App() {
           <View style={styles.stageNote}><Text style={styles.stageNoteText}>
             {currentMode==="native"
               ?"APK-ja ekzekutohet në Appetize pasi të jetë ngarkuar aty. Nisja e sesionit mund të konsumojë minuta me pagesë."
-              :"Web Preview rifreskohet çdo 30 sekonda gjatë përdorimit. Shfaq versionin e publikuar, jo kodin e papublikuar në GitHub."}
+              :"Kontrollojmë versionin çdo 15 sekonda. Kur mungojnë metadata-t, rifreskojmë çdo 60 sekonda dhe e shënojmë si të paverifikuar."}
           </Text></View>
+          {current && currentMode==="web" && <View style={styles.monitorPanel}>
+            <View style={styles.monitorHeader}>
+              <View>
+                <Text style={styles.overline}>DEPLOYMENT OBSERVER · WEB</Text>
+                <Text style={styles.monitorTitle}>Live Sync &amp; Build Monitor</Text>
+              </View>
+              <Badge good={syncSummary.ok}>{syncSummary.title}</Badge>
+            </View>
+            <Text style={styles.monitorDescription}>{syncSummary.detail}</Text>
+            <View style={styles.monitorMetrics}>
+              <View style={styles.monitorMetric}>
+                <Text style={styles.metricLabel}>VERSION I NJOHUR</Text>
+                <Text selectable style={styles.metricValue}>{syncState.revision ? syncState.revision.slice(0,12) : "—"}</Text>
+              </View>
+              <View style={styles.monitorMetric}>
+                <Text style={styles.metricLabel}>KONTROLLI I FUNDIT</Text>
+                <Text style={styles.metricValue}>{readableTime(syncState.checkedAt)}</Text>
+              </View>
+              <View style={styles.monitorMetric}>
+                <Text style={styles.metricLabel}>CI / BUILD</Text>
+                <Text style={styles.metricValue}>I paverifikuar</Text>
+              </View>
+            </View>
+            <Text style={styles.monitorWarning}>Statusi i GitHub Actions dhe Vercel Build kërkon integrim të autorizuar. Nuk supozojmë sukses nga një URL aktive.</Text>
+            <View style={styles.monitorLinks}>
+              <RoundButton label="↗ GitHub Actions" onPress={()=>link(current.github+"/actions")}/>
+              <RoundButton label="↗ Web deployment" onPress={()=>link(current.web)}/>
+            </View>
+          </View>}
           <View style={styles.deviceArea}>
             <View style={[styles.device, {width:isCompact?"100%":previewWidth},
               currentMode==="native"&&styles.nativeDevice]}>
@@ -220,9 +313,9 @@ export default function App() {
               <View style={styles.deviceBottom}><View style={styles.deviceHome}/></View>
             </View>
             <View style={styles.previewTools}><View style={styles.statusRow}>
-              <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"Preview i lidhur":"Në pritje të lidhjes"}</Text></View>
+              <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"URL e demonstrimit e konfiguruar":"Në pritje të lidhjes"}</Text></View>
               {current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
-              <Text style={styles.infoSmall}>{currentMode==="web"?"AUTO RELOAD: 30s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
+              <Text style={styles.infoSmall}>{currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
               {currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
               {lastUpdate&&<Text style={styles.infoSmall}>Rifreskimi i fundit: {lastUpdate}</Text>}
             </View>
@@ -330,6 +423,16 @@ const styles=StyleSheet.create({
   statusRow:{flexDirection:"row",gap:7,alignItems:"center"},
   statusText:{color:"#C3D0EC",fontSize:11,fontWeight:"800"},
   infoSmall:{fontSize:10,color:C.muted,fontWeight:"700"},
+  monitorPanel:{marginTop:18,padding:18,borderRadius:14,borderWidth:1,borderColor:C.outline,backgroundColor:C.panel},
+  monitorHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8},
+  monitorTitle:{fontSize:17,fontWeight:"900",color:C.text,marginTop:7},
+  monitorDescription:{fontSize:11,color:C.soft,marginTop:12,lineHeight:18},
+  monitorMetrics:{marginTop:15,flexDirection:"row",flexWrap:"wrap",gap:9},
+  monitorMetric:{flexGrow:1,flexBasis:150,backgroundColor:"#0B1527",borderWidth:1,borderColor:C.outline,padding:12,borderRadius:10},
+  metricLabel:{fontSize:9,color:C.muted,fontWeight:"800",letterSpacing:.5},
+  metricValue:{fontSize:13,color:C.text,fontWeight:"800",marginTop:7},
+  monitorWarning:{color:"#E3C7A7",fontSize:10,lineHeight:16,marginTop:13},
+  monitorLinks:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:14},
   disclaimer:{maxWidth:720,marginTop:22,alignSelf:"center"},
   disclaimerText:{color:"#8090AF",fontSize:11,lineHeight:19,textAlign:"center"},
   footer:{paddingHorizontal:24,paddingVertical:14,borderTopWidth:1,borderTopColor:C.outline,
