@@ -1,6 +1,10 @@
-declare module "./PreviewHost" {
-  import React from "react";
-  type Props={url:string;variant:"web"|"native";revision:number;title:string};
-  const PreviewHost: React.ComponentType<Props>;
-  export default PreviewHost;
-}
+import type {ComponentType} from "react";
+
+export type PreviewHostProps = {
+  url:string;
+  variant:"web" | "native";
+  revision:number;
+  title:string;
+};
+declare const PreviewHost:ComponentType<PreviewHostProps>;
+export default PreviewHost;

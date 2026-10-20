@@ -1,0 +1,42 @@
+name: Verify Expo Studio
+
+on:
+  push:
+    branches: [main, "feat/**"]
+    paths:
+      - "studio/**"
+      - ".github/workflows/studio-verify.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "studio/**"
+      - ".github/workflows/studio-verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  expo-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package.json
+      - name: Install isolated Expo dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify registry model
+        run: npm run check:config
+      - name: Check TypeScript
+        run: npm run typecheck
+      - name: Export Expo Web
+        run: npm run export:web
+      - name: Verify static output
+        run: node -e "const f=require('node:fs');if(!f.existsSync('dist/index.html'))process.exit(1)"
