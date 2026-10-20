@@ -32,6 +32,13 @@ jobs:
           cache-dependency-path: studio/package.json
       - name: Install isolated Expo dependencies
         run: npm install --no-audit --no-fund
+      - name: Export temporary dependency lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-lockfile-bootstrap
+          path: studio/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Verify registry model
         run: npm run check:config
       - name: Check TypeScript
