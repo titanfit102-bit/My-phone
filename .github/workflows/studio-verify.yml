@@ -13,7 +13,7 @@ on:
       - ".github/workflows/studio-verify.yml"
 
 permissions:
-  contents: read
+  contents: write # TEMPORARY lockfile bootstrap; revert before PR
 
 jobs:
   expo-web:
@@ -39,6 +39,18 @@ jobs:
           path: studio/package-lock.json
           if-no-files-found: error
           retention-days: 1
+      - name: Commit generated lockfile to isolated feature branch (bootstrap only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/studio-reproducible-ci-lockfile'
+        working-directory: .
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- studio/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build(studio): lock Expo npm dependency graph"
+            git push origin HEAD:refs/heads/feat/studio-reproducible-ci-lockfile
+          fi
       - name: Verify registry model
         run: npm run check:config
       - name: Check TypeScript
