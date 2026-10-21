@@ -18,7 +18,7 @@ permissions:
 jobs:
   expo-web:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: studio
@@ -46,6 +46,20 @@ jobs:
         run: node -e "const f=require('node:fs');if(!f.existsSync('dist/index.html'))process.exit(1)"
       - name: Verify deployment manifest
         run: node -e "const x=require('./dist/build-info.json');if(typeof x.revision!=='string'||!Number.isFinite(Date.parse(x.builtAt)))process.exit(1)"
+      - name: Install Playwright Chromium and Linux dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Exercise Studio in desktop and mobile Chromium
+        run: npm run test:e2e
+      - name: Upload Playwright traces and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-phone-studio-playwright-failures
+          path: |
+            studio/test-results/
+            studio/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Archive Expo Web export for visual smoke tests
         uses: actions/upload-artifact@v4
         with:
