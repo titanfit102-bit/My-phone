@@ -17,7 +17,11 @@ function safePath(name) {
 function normalizeEntries(names) {
   const parts=names.map(n=>n.split("/").filter(Boolean));
   // GitHub ZIPs have one common root directory. Strip exactly one segment.
-  const shared=parts.length>0 && parts.every(p=>p.length>=2 && p[0]===parts[0][0]);
+  // Strip a GitHub repository wrapper, not actual build/source directories.
+  // A single file has no provable wrapper; dist/, build/, out/ and android/ are semantic roots.
+  const reserved=new Set(["dist","build","out","src","app","android","ios","public"]);
+  const shared=parts.length>1 && !reserved.has((parts[0]?.[0]||"").toLowerCase()) &&
+    parts.every(p=>p.length>=2 && p[0]===parts[0][0]);
   const root=shared ? parts[0][0] : "";
   return {root,paths:parts.map(p=>(shared?p.slice(1):p).join("/")).filter(Boolean)};
 }
