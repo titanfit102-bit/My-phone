@@ -12,6 +12,12 @@ A source-isolated, multi-project virtual device lab. **This is the STUDIO, not t
 - The list is stored in this browser's localStorage, not synchronized across devices. Storage failures are visible and validated JSON export/import is available for manual backup/recovery.
 - No API keys in the client; no paid cloud sessions start automatically.
 
+## ZIP Import — first phase
+
+The **↑ Ngarko ZIP** action in the Expo Web sidebar inspects a local GitHub Download ZIP file (32 MB cap) and reports indicative framework type and whether the archive contains source or a static build candidate. It reads only ZIP directory metadata and never decompresses, executes or uploads archive contents. **It does not yet build, deploy or display an app from the ZIP.** Deliberately treat all uploaded files as untrusted; do not bypass the parser to serve an HTML archive from the Studio origin. Native Expo interface reports that ZIP inspection is Web-only for this stage.
+
+A future *separately authorized* build stage requires sandboxed remote execution, no user-app secrets in the browser, resource limits, safe artifact hosting and isolated origins. Real previews from raw GitHub source depend on this stage.
+
 ## Setup
 
 Node.js 22.13+ recommended.

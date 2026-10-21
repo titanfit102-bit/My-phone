@@ -13,6 +13,12 @@
 
 **Komponentët legacy janë tërhequr nga produkti:** Chrome Extension u hoq në PR #9; demoja standalone `web/` dhe build-i i saj nuk janë pjesë e Studios. Pas miratimit dhe integrimit të PR-së së pastrimit, këta komponentë nuk janë më pjesë e kodit aktual. Historiku Git ruhet për auditim dhe rikthim.
 
+## ZIP Import — faza 1 (analizë e sigurt, jo build)
+
+Në sidebar ekziston **↑ Ngarko ZIP** për të zgjedhur arkivin e shkarkuar nga GitHub main. Studio analizon vetëm indeksin/strukturën e ZIP-it lokalisht, zbulon me indikacione framework-un dhe dallon kodin burimor nga kandidati për build Web statik. **Nuk nxjerr, ekzekuton, ruan apo ngarkon kodin në server. Nuk prodhon ende preview nga ky ZIP.** Kufijtë: ZIP maksimal 32 MB, 5000 hyrje, 512 MB madhësi e deklaruar e çkompresuar; arkivat me emra të pasigurt, lidhje simbolike, ZIP64 apo enkriptim refuzohen. Kjo aftësi nuk kërkon kredenciale GitHub dhe nuk prek projektet e tjera.
+
+**Faza 2 (nuk është implementuar):** mjedis build-i i izoluar me autorizim dhe kufi shpenzimesh; publikim i versionit Web te një host i veçantë ose APK në Android Cloud, pastaj lidhja automatike e preview-t.
+
 ## Dy mënyrat e preview
 
 | Mënyra | Si funksionon | Kufiri |
