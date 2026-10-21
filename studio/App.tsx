@@ -261,14 +261,17 @@ export default function App() {
     setRevision(r=>r+1);
   };
   // Fit the full 430:932 phone into the viewport, independent of sidebar scrolling.
-  const previewWidth = Math.max(260,Math.min(400,Math.floor((height-48)*430/932)));
+  // Preserve the phone's 430:932 proportions while respecting both viewport axes.
+  // At the desktop breakpoint the middle column must account for two sidebars and gaps.
+  const horizontalRoom = isCompact ? width - 32 : width - 355 - 310 - 64;
+  const previewWidth = Math.max(100,Math.min(400,Math.floor((height-48)*430/932),horizontalRoom));
   const previewHeight = Math.round(previewWidth*932/430);
   const syncSummary = summarizeSync(syncState);
   const readableTime = (time:number|null) => time ? new Date(time).toLocaleTimeString("sq-AL") : "—";
   return (
     <View style={[styles.app,!isCompact&&{height},isWeb&&({backgroundImage:"radial-gradient(ellipse at 70% 45%, #3b1027 0%, #190b18 43%, #09080d 84%)"} as any)]}>
       <View style={[styles.main,isCompact&&styles.mainMobile]}>
-        <ScrollView contentContainerStyle={styles.sidebarContent}
+        <ScrollView testID="studio-projects-panel" contentContainerStyle={styles.sidebarContent}
           style={[styles.sidebar,isCompact&&styles.sidebarMobile]} showsVerticalScrollIndicator={false}>
           <View style={styles.brandInSidebar}>
             <View style={styles.brand}><View style={styles.logo}><Text style={styles.logoLetter}>M</Text></View>
@@ -352,7 +355,7 @@ export default function App() {
         <View style={[styles.stage,isCompact&&styles.stageMobile]}>
           <View style={[styles.phoneColumn,isCompact&&{minHeight:previewHeight+22,flexGrow:0,flexShrink:0}]}>
             <View style={styles.deviceArea}>
-            <View style={[styles.device, {width:previewWidth,height:previewHeight},
+            <View testID="studio-phone-frame" style={[styles.device, {width:previewWidth,height:previewHeight},
               currentMode==="native"&&styles.nativeDevice]}>
               <View style={styles.deviceTop}><Text style={styles.deviceClock}>9:41</Text>
                 <View style={styles.deviceNotch}/><Text style={styles.deviceSignal}>◉ ▮▮</Text></View>
@@ -372,7 +375,7 @@ export default function App() {
             </View>
             </View>
           </View>
-          <ScrollView style={[styles.workspaceTools,isCompact&&styles.workspaceToolsMobile]}
+          <ScrollView testID="studio-diagnostics-panel" style={[styles.workspaceTools,isCompact&&styles.workspaceToolsMobile]}
             contentContainerStyle={styles.workspaceToolsContent} showsVerticalScrollIndicator>
           <View style={[styles.stageHeading,isCompact&&styles.stageHeadingMobile]}>
             <View><Text style={styles.overline}>DEVICE LAB / LIVE PREVIEW</Text>
