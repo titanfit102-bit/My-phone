@@ -65,7 +65,7 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
     {assessment&&<View style={styles.engineBox}>
       <Text style={styles.engineTitle}>ENGINE CORE · {assessment.decision.code}</Text>
       <Text style={styles.engineDetail}>{assessment.source.framework}</Text>
-      <Text style={styles.engineDetail}>{assessment.diagnostics[0].detail}</Text>
+      {assessment.decision.status!=="failed"&&<Text style={styles.engineDetail}>{assessment.diagnostics[0].detail}</Text>}
       <Text style={styles.engineNext}>{assessment.diagnostics[0].nextAction}</Text>
     </View>}
     <Text style={styles.note}>Vetëm në këtë seancë. Pa server, pa instalim, pa ruajtje të ZIP-it. Nuk ekzekuton backend apo kod burimor.</Text>
