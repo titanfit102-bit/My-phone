@@ -100,8 +100,12 @@ export function inspectZip(arrayBuffer, filename="archive.zip") {
   const uniquePaths=new Set(normalized.paths.map(x=>x.toLowerCase()));
   if(uniquePaths.size!==normalized.paths.length)fail("ZIP ka skedarë të dyfishtë pas normalizimit.");
   const result=classify(normalized.paths);
+  // Detect build entries independently of framework; GitHub source ZIPs may include dist/.
+  const candidates=normalized.paths.filter(path=>/(^|\/)(dist|build|out)\/index\.html$/i.test(path));
   return {
     filename,
+    buildCandidateCount:candidates.length,
+    buildCandidates:candidates.slice(0,10),
     count:names.length,
     archivedBytes:len,
     declaredBytes:declared,
