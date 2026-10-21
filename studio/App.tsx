@@ -4,6 +4,7 @@ import {
   Text, TextInput, useWindowDimensions, View
 } from "react-native";
 import PreviewHost from "./src/PreviewHost";
+import ZipImportPanel from "./src/ZipImportPanel";
 import {newProject, chooseMode, freshWebUrl} from "./src/project-model";
 import {readProjectRegistry, writeProjectRegistry, serializeProjectBackup,
   parseProjectBackup, MAX_BACKUP_BYTES} from "./src/project-storage";
@@ -274,6 +275,7 @@ export default function App() {
             <Text style={styles.sidebarTitle}>Aplikacionet <Text style={{color:C.muted}}>({projects.length})</Text></Text></View>
             <RoundButton label="+ Shto" primary onPress={addNew}/></View>
           <Text style={styles.sidebarIntro}>Lidh repository-t e aplikacioneve pa përzier kodin e tyre me këtë studio.</Text>
+          <ZipImportPanel/>
           {!!registryWarning&&<Text accessibilityRole="alert" style={styles.registryWarning}>{registryWarning}</Text>}
           <View style={styles.backupActions}>
             <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>

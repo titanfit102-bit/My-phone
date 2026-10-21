@@ -236,3 +236,46 @@ for(const defense of ["csp","x-frame-options"]){
     await expect(page.getByRole("button",{name:"Hap Blocked Preview"})).toBeVisible();
   });
 }
+
+import {makeZip} from "../tests/zip-fixtures.mjs";
+
+test("GitHub main ZIP can be picked locally and Expo source is identified, not executed",async ({page})=>{
+  await page.goto("/");
+  const archive=makeZip([
+    {name:"hello-main/package.json",content:'{"dependencies":{"expo":"latest"}}'},
+    {name:"hello-main/app.json",content:"{}"},
+    {name:"hello-main/App.tsx",content:"throw Error('do not run')"}
+  ]);
+  const [chooser]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
+  ]);
+  await chooser.setFiles({name:"hello-main.zip",mimeType:"application/zip",buffer:Buffer.from(archive)});
+  await expect(page.getByText("Framework: Expo / React Native (indikacion)")).toBeVisible();
+  await expect(page.getByText("Preview: NUK është gjeneruar. Build-i është fazë tjetër, me autorizim.")).toBeVisible();
+  await expect(page.getByText(/Asnjë skedar nuk u ekzekutua ose dërgua në server/)).toBeVisible();
+});
+
+test("unsafe ZIP entries are rejected before any preview is created",async ({page})=>{
+  await page.goto("/");
+  const file=makeZip([{name:"app-main/../../secret.txt",content:"password"}]);
+  const [chooser]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
+  ]);
+  await chooser.setFiles({name:"unsafe.zip",mimeType:"application/zip",buffer:Buffer.from(file)});
+  await expect(page.getByText(/rrugë skedarësh të pasigurta/)).toBeVisible();
+  await expect(page.getByText("Preview: NUK është gjeneruar. Build-i është fazë tjetër, me autorizim.")).toHaveCount(0);
+});
+
+test("plain built HTML ZIP is labeled a candidate rather than falsely previewed",async ({page})=>{
+  await page.goto("/");
+  const file=makeZip([{name:"dist/index.html",content:"<html><body>ZIP preview not running</body></html>"}]);
+  const [chooser]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
+  ]);
+  await chooser.setFiles({name:"static.zip",mimeType:"application/zip",buffer:Buffer.from(file)});
+  await expect(page.getByText(/Framework: HTML statik/)).toBeVisible();
+  await expect(page.getByText(/ZIP-i nuk është ekzekutuar/)).toBeVisible();
+});
