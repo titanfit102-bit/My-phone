@@ -1,5 +1,5 @@
 // Test-only ZIP fixtures; no external packages or archive execution.
-import {deflateRawSync} from "node:zlib";
+import {deflateRawSync,crc32} from "node:zlib";
 const encoder=new TextEncoder();
 const write16=(v,p,x)=>v.setUint16(p,x,true),write32=(v,p,x)=>v.setUint32(p,x>>>0,true);
 export function makeZip(files,options={}) {
@@ -8,24 +8,35 @@ export function makeZip(files,options={}) {
   for(const item of files){
     const filename=item.name;
     const name=encoder.encode(filename);
-    const content=encoder.encode(item.content||"");
+    const content=item.bytes instanceof Uint8Array ? item.bytes : encoder.encode(item.content||"");
     const flags=item.flags||0,method=item.method||0;
     const payload=method===8?deflateRawSync(content):content;
     const packed=item.packedSize??payload.length;
     const unpacked=item.size??content.length;
-    const localBuf=new Uint8Array(30+name.length+payload.length);
+    const descriptor=flags&8?new Uint8Array(16):new Uint8Array();
+    if(flags&8){
+      const desc=new DataView(descriptor.buffer);
+      write32(desc,0,0x08074b50);write32(desc,4,crc32(content));
+      write32(desc,8,packed);write32(desc,12,unpacked);
+    }
+    const localBuf=new Uint8Array(30+name.length+payload.length+descriptor.length);
     let d=new DataView(localBuf.buffer);
     write32(d,0,0x04034b50);
     write16(d,6,flags);write16(d,8,method);
-    write32(d,18,packed);write32(d,22,unpacked);
+    if(!(flags&8)){
+      write32(d,14,crc32(content));
+      write32(d,18,packed);write32(d,22,unpacked);
+    }
     write16(d,26,name.length);localBuf.set(name,30);
     localBuf.set(payload,30+name.length);
+    localBuf.set(descriptor,30+name.length+payload.length);
     local.push(localBuf);
     const centralBuf=new Uint8Array(46+name.length);
     d=new DataView(centralBuf.buffer);
     write32(d,0,0x02014b50);
     write16(d,4,3<<8); // Unix-origin archive
     write16(d,8,flags);write16(d,10,method);
+    write32(d,16,crc32(content));
     write32(d,20,packed);write32(d,24,unpacked);
     write16(d,28,name.length);write32(d,38,item.attrs??(0x81a40000));
     write32(d,42,offset);centralBuf.set(name,46);

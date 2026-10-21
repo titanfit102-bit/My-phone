@@ -1,0 +1,322 @@
+{
+  "date": "2026-10-21",
+  "repository": "titanfit102-bit/My-phone",
+  "branch": "feat/advanced-zip-local-assets",
+  "remoteBase": "ba2a5c02afd12b5be862832022f5a5529dfdd3ea",
+  "node": [
+    "22.23.3",
+    "24.19.0"
+  ],
+  "nodeTests": {
+    "passed": 71,
+    "failed": 0,
+    "skipped": 0,
+    "bothRuntimes": true
+  },
+  "typescript": {
+    "passed": true,
+    "bothRuntimes": true
+  },
+  "expoWebExport": {
+    "passed": true,
+    "bothRuntimes": true,
+    "bundle": "AppEntry-500b5496abf1fc952e218694472a3a18.js"
+  },
+  "playwright": {
+    "version": "1.64.1",
+    "browser": "Chromium 153.0.8010.0 (Sparticuz 153.0.0 npm binary)",
+    "stats": {
+      "startTime": "2026-10-21T19:07:08.744Z",
+      "duration": 57988.536,
+      "expected": 35,
+      "skipped": 1,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "tests": [
+      {
+        "name": "register, persist, edit, switch and remove projects",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "reject invalid project URLs without saving a project",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "sync checks a published manifest and refreshes only on a new revision",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "unsupported manifest uses fallback and keeps the external-open action",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "Session Freeze preserves an unfinished iframe form until the user accepts a new version",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "quota-denied writes show a warning and allow downloading a valid backup",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "corrupt preexisting registry is not silently erased on startup",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "a validated JSON backup can restore projects using the browser file chooser",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "iframe blocked by csp remains explicitly unverified with external fallback",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "iframe blocked by x-frame-options remains explicitly unverified with external fallback",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "GitHub source-only ZIP explains that build is needed and does not execute source",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "unsafe ZIP entries are rejected before any preview is created",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "HTML-only ZIP lacking its JS bundle cannot falsely claim working preview",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "ZIP Quick Preview displays built Vite HTML only in sandbox, and closes without saving",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "ZIP with only source gives actionable message and never opens a phone iframe",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "premium desktop phone remains fully visible while both side panels scroll",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "Advanced ZIP keeps multiple CSS and local raster images inside isolated phone frame",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "ZIP sandbox blocks parent access, fetch, remote images and popups; storage dies with frame",
+        "project": "desktop-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "register, persist, edit, switch and remove projects",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "reject invalid project URLs without saving a project",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "sync checks a published manifest and refreshes only on a new revision",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "unsupported manifest uses fallback and keeps the external-open action",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "Session Freeze preserves an unfinished iframe form until the user accepts a new version",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "quota-denied writes show a warning and allow downloading a valid backup",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "corrupt preexisting registry is not silently erased on startup",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "a validated JSON backup can restore projects using the browser file chooser",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "iframe blocked by csp remains explicitly unverified with external fallback",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "iframe blocked by x-frame-options remains explicitly unverified with external fallback",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "GitHub source-only ZIP explains that build is needed and does not execute source",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "unsafe ZIP entries are rejected before any preview is created",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "HTML-only ZIP lacking its JS bundle cannot falsely claim working preview",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "ZIP Quick Preview displays built Vite HTML only in sandbox, and closes without saving",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "ZIP with only source gives actionable message and never opens a phone iframe",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "premium desktop phone remains fully visible while both side panels scroll",
+        "project": "mobile-chromium",
+        "status": "skipped",
+        "retries": 0
+      },
+      {
+        "name": "Advanced ZIP keeps multiple CSS and local raster images inside isolated phone frame",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      },
+      {
+        "name": "ZIP sandbox blocks parent access, fetch, remote images and popups; storage dies with frame",
+        "project": "mobile-chromium",
+        "status": "expected",
+        "retries": 0
+      }
+    ],
+    "note": "Temporary config overrides executable/launch args only; no disabled web security, CSP or same-origin checks; 2 workers, no retries. Default pinned Playwright Chromium 156 download failed and was NOT tested."
+  },
+  "audit": {
+    "critical": 0,
+    "high": 15,
+    "moderate": 3,
+    "gate": "PASS with pre-existing exceptions, not a clean audit",
+    "dependencyChanges": false
+  },
+  "githubActions": {
+    "status": "BLOCKED before steps",
+    "run": 39652994244,
+    "usedMinutes": 2000,
+    "includedMinutes": 2000,
+    "actionsExtraBudgetUSD": 0,
+    "billingChanged": false,
+    "implementationRun": 39659505506,
+    "implementationRunConclusion": "failure with no steps or job log"
+  },
+  "sourceGitBlobs": {
+    ".github/workflows/studio-verify.yml": "6fbd8986cfd2fdbe413fd808c282a729d814e19e",
+    "studio/.gitignore": "9b398daca80fc09571b0394a8ac81e9619883c40",
+    "studio/App.tsx": "01981acb987e46d36a7a51d07da5521e92da2106",
+    "studio/README.md": "f65481489497f18d9f0a8ed589ffa13b7dc1e4ee",
+    "studio/app.json": "eb7ff7fdbdc9a7658511df78bc998b5ee66cbedf",
+    "studio/e2e/studio.spec.mjs": "135cf9f24f7a3bf4bcb974230882330ad0ecfb54",
+    "studio/package-lock.json": "3cd545615acc0b40092f232476f5e78bbdfc9c7c",
+    "studio/package.json": "20d07ed39b07b726ba337b50d35250e8843c5b7b",
+    "studio/playwright.config.mjs": "4a051e0e1afe5febbad66a1aeb1471453b20e105",
+    "studio/scripts/emit-build-info.mjs": "96ff01bb0e065e12ba6d396badcaefec757529bb",
+    "studio/scripts/verify-security-audit.mjs": "83207838823d675062ff942668f74c0d42aa836e",
+    "studio/src/PreviewHost.d.ts": "11f2994577c94b20ac1d07d83fdcbe7f60ff4800",
+    "studio/src/PreviewHost.native.tsx": "ce295e0be8136a9d8fa4405faacafd595fd90842",
+    "studio/src/PreviewHost.web.tsx": "314437e4dc63a7acbe486ada7307292289336373",
+    "studio/src/ZipImportPanel.d.ts": "aeb1edcd4945b3d8b7638a8a054bc91d36858941",
+    "studio/src/ZipImportPanel.native.tsx": "ef5d156d9b456e35f0d3ca37e477c8d50a56194f",
+    "studio/src/ZipImportPanel.web.tsx": "97a40db1b5d50627ea0b7489361c8c25a309df43",
+    "studio/src/engine-core.js": "92be46d2a110be8c020f7813517bf71be9755533",
+    "studio/src/live-sync.js": "f6af6bb6bf55a7e6dc94f5302a89fbfc2c82432e",
+    "studio/src/project-model.js": "89987d6604054529ec36023eddf5fbeed73a8c7d",
+    "studio/src/project-storage.js": "7d87498126cc867c35b6ee5350359723a8a54beb",
+    "studio/src/quick-preview.js": "2cffb1078cdfeb0367af9d2882f12638fc42d72f",
+    "studio/src/zip-inspector.js": "3aece557fd4c141eb2d4f26aa230a19cf4ba64b7",
+    "studio/tests/FONT_FIXTURE_LICENSE.txt": "20cd4dcb52b78a9b86b284c75f55802c27689e11",
+    "studio/tests/engine-core.test.mjs": "9c6a41aa19f74f9c7d992902e77c40e503d4142c",
+    "studio/tests/font-fixture.mjs": "e7fc5630a69df3255f43da8d30963b422f27443a",
+    "studio/tests/live-sync.test.mjs": "af92bb7274a7e8629a3e96bac99a23bed000ec5c",
+    "studio/tests/project-model.test.mjs": "bb7d40780bf3a1e167321a2b1e281defb67f67ec",
+    "studio/tests/project-storage.test.mjs": "1cf747e58c10cc88da35820437ba25b1712a9b40",
+    "studio/tests/quick-preview.test.mjs": "94f2695ba580f0c2538160698c96476c6de64f15",
+    "studio/tests/repo-boundary.test.mjs": "284ac4e53f5ae3c9bb7abaf50234c8c72516553e",
+    "studio/tests/security-audit.test.mjs": "01ec8ad493678ec07bfcaef96e248550b734e0f0",
+    "studio/tests/zip-fixtures.mjs": "dd6a3a3a2a4538c30b44246184091b2c62330192",
+    "studio/tests/zip-inspector.test.mjs": "e7d14140811a4fce0d1c1b2f8f7e13fd864ca73c",
+    "studio/tsconfig.json": "47274101d6bb5787a6f5046b81e98de91602b752",
+    "studio/vercel.json": "6fdad479260b1a5584bd2d057b693b7b293ffadf"
+  },
+  "implementationCommit": "ba8362e8305c7d6f1598554d370666ae6ba98acb",
+  "vercel": {
+    "implementationCommitStatus": "failure",
+    "description": "Deployment rate limited \u2014 retry in 24 hours.",
+    "initialPreview": "https://my-phone-studio-rkgqk1xu0-un24.vercel.app",
+    "initialPreviewState": "READY",
+    "initialPreviewSHA": "ba2a5c02afd12b5be862832022f5a5529dfdd3ea",
+    "finalPreviewVerified": false,
+    "runtimeAccess": "Vercel Authentication; connector 403 for team un24",
+    "billingChanged": false
+  }
+}

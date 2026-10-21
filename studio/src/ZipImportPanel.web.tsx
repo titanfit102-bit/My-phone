@@ -54,7 +54,7 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>QUICK PREVIEW NGA ZIP</Text>
-    <Text style={styles.description}>Ngarko ZIP-in e shkarkuar nga GitHub. Nëse përmban dist/index.html dhe një bundle Vite të gatshëm, hapet përkohësisht në ekranin e telefonit.</Text>
+    <Text style={styles.description}>Ngarko ZIP-in e shkarkuar nga GitHub. Nëse përmban dist/index.html, një JS bundle dhe deri në katër CSS lokale, përgatitet përkohësisht në ekranin e telefonit; backend-i nuk niset.</Text>
     <Pressable accessibilityRole="button" onPress={pick} disabled={busy} style={styles.button}>
       <Text style={styles.buttonText}>{busy?"Po lexohet ZIP...":"↑ Ngarko ZIP"}</Text>
     </Pressable>
