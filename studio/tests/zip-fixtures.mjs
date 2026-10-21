@@ -8,7 +8,7 @@ export function makeZip(files,options={}) {
   for(const item of files){
     const filename=item.name;
     const name=encoder.encode(filename);
-    const content=encoder.encode(item.content||"");
+    const content=item.bytes instanceof Uint8Array ? item.bytes : encoder.encode(item.content||"");
     const flags=item.flags||0,method=item.method||0;
     const payload=method===8?deflateRawSync(content):content;
     const packed=item.packedSize??payload.length;
