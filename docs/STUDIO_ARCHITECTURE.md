@@ -4,7 +4,7 @@
 
 The **My-phone** repository hosts the central *viewer/studio only*. Never copy an unrelated application's source into this repository.
 
-The only maintained application surface is `studio/` — Expo + React Native Web, deployed to the existing Vercel project `my-phone-studio` at https://my-phone-studio.vercel.app. Legacy Chrome Extension was removed in PR #9 and the standalone `web/` proof of concept is retired. Repository cleanup is proposed separately and requires review before merge.
+The only maintained application surface is `studio/` — Expo + React Native Web, deployed to the existing Vercel project `my-phone-studio` at https://my-phone-studio.vercel.app. Legacy Chrome Extension was removed in PR #9 and the standalone `web/` proof of concept is retired. The standalone repository-root web demo and its CI are retired as part of a separately reviewed cleanup. Git history is retained.
 
 Each external app retains its own GitHub repository, hosting configuration, backend, tests, access controls, deployments, APK packages, and ownership.
 

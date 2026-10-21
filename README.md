@@ -11,7 +11,7 @@
 - Kontrata për manifest të aplikacioneve të jashtme: `docs/LIVE_SYNC_V04.md`.
 - Shembull opsional për ta kopjuar në repository-t e **aplikacioneve të jashtme**: `templates/emit-build-info.mjs`.
 
-**Komponentët legacy janë tërhequr nga produkti:** Chrome Extension u hoq në PR #9; demoja standalone `web/` dhe build-i i saj nuk janë pjesë e Studios. Kjo degë propozon pastrimin e tyre; pastrimi nuk është në Production deri në miratimin dhe merge të PR-së përkatëse. Historiku Git ruhet për rikthim.
+**Komponentët legacy janë tërhequr nga produkti:** Chrome Extension u hoq në PR #9; demoja standalone `web/` dhe build-i i saj nuk janë pjesë e Studios. Pas miratimit dhe integrimit të PR-së së pastrimit, këta komponentë nuk janë më pjesë e kodit aktual. Historiku Git ruhet për auditim dhe rikthim.
 
 ## Dy mënyrat e preview
 
