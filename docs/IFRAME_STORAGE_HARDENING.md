@@ -19,7 +19,7 @@ Only validated HTTPS preview URLs or supported Appetize embeds are used. The web
 
 A `load` event cannot prove a cross-origin iframe rendered: a site can block embedding through `Content-Security-Policy: frame-ancestors 'none'` or `X-Frame-Options: DENY`. We **do not** display a misleading 'preview loaded' success status and do not try to bypass those headers.
 
-Even with Session Freeze, a third-party frame can navigate or refresh itself. This PR neither weakens its security headers nor changes connected app repos.
+Even with Session Freeze, a third-party frame can navigate or refresh itself. The implementation neither weakens its security headers nor changes connected app repositories.
 
 ## Reproducible verification
 

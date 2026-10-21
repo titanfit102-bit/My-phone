@@ -30,9 +30,9 @@ Build production Web export:
 npm run export:web
 ```
 
-Deploy to Vercel as **a separate project with Root Directory `studio`**. Build command `npm run export:web`, output `dist`.
+Current Vercel project: **`my-phone-studio`**, with Studio source rooted at `studio/`; build command `npm run export:web`, output `dist`.
 
-Do not repoint the original `my-phone-preview-studio` Vercel project to this directory without testing.
+Production is already the **`my-phone-studio`** Vercel project (https://my-phone-studio.vercel.app), connected to this repository. Do not reconfigure the project, create another site, or merge without explicit approval. The old standalone preview website was retired.
 
 ## Link an external Expo app
 

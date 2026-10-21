@@ -4,7 +4,7 @@
 
 ## Evidence and scope
 - Source: npm audit (production dependency classification) on the Expo Studio lockfile in PR #4's branch; original failure run: [39507045636](https://github.com/titanfit102-bit/My-phone/actions/runs/39507045636).
-- Lockfile path: `studio/package-lock.json` (currently proposed, not merged to `main`).
+- Lockfile path: `studio/package-lock.json` (merged and used by the current Studio CI).
 - Version: Expo ~57.0.0 resolved as 57.0.30; React Native 0.86.0; build output is a **static Expo Web export**, not an exposed Node.js production service.
 - The flagged code belongs chiefly to **transitive CLI/Metro/build-time dependencies**. Installed production-dependency categorization by npm does not prove those packages execute inside the deployed browser bundle. **No code reachability assessment or incident investigation has been completed.**
 
@@ -17,7 +17,7 @@
 
 **15 high findings are package-chain counts, NOT proof of 15 distinct exploited vulnerabilities.** npm audit suggested `--force` would downgrade Expo to 44; **do not** accept that breaking change. Patching/replacing packages by arbitrary Git forks is not an acceptable silent workaround.
 
-## Mitigation selected (proposed stacked PR)
+## Mitigation selected (implemented CI policy; advisories not fixed)
 1. Keep lockfile + `npm ci`, no automatic forced changes.
 2. Add a **fail-closed** JSON audit gate that blocks *any new* high-severity root advisory, any critical advisory, malformed audit response, or growth above the baseline of 15 high paths.
 3. Only the two reviewed GHSA identifiers above are temporarily accepted, **until 2026-11-21**; they remain visible in CI and are not claimed fixed.
@@ -33,4 +33,4 @@
 
 ## Explicit release guardrail
 Until the review: do not start a public Node service from Expo/Metro, do not process untrusted glob patterns, do not use Studio's build tooling to validate untrusted signing certificates and do not add privileged provider tokens.
-Production deployment and main branch remain unmodified by this triage PR until explicit review and authorization.
+Historical note: triage PRs #4/#5 were merged following authorization. Current `main`/Production must be checked using GitHub and Vercel; this note is not a release-status claim.
