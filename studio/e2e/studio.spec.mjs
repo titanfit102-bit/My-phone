@@ -279,3 +279,41 @@ test("plain built HTML ZIP is labeled a candidate rather than falsely previewed"
   await expect(page.getByText(/Framework: HTML statik/)).toBeVisible();
   await expect(page.getByText(/ZIP-i nuk është ekzekutuar/)).toBeVisible();
 });
+
+test("ZIP Quick Preview displays built Vite HTML only in sandbox, and closes without saving",async ({page})=>{
+  await page.goto("/");
+  const zip=makeZip([
+    {name:"sample-main/dist/index.html",method:8,content:'<!doctype html><script type="module" src="/assets/demo.js"></script><link rel="stylesheet" href="/assets/demo.css">'},
+    {name:"sample-main/dist/assets/demo.js",method:8,content:"localStorage.setItem('ziponly','temporary');document.getElementById('root').innerHTML='<h1>ZIP Running</h1><button id=go>Click</button>';document.querySelector('#go').onclick=()=>{document.querySelector('h1').textContent=localStorage.getItem('ziponly');};"},
+    {name:"sample-main/dist/assets/demo.css",method:8,content:"h1{color:teal}"}
+  ]);
+  const [chooser]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
+  ]);
+  await chooser.setFiles({name:"demo.zip",mimeType:"application/zip",buffer:Buffer.from(zip)});
+  const frame=page.frameLocator('iframe[title="Quick Preview · ZIP"]');
+  await expect(frame.getByRole("heading",{name:"ZIP Running"})).toBeVisible();
+  await frame.getByRole("button",{name:"Click"}).click();
+  await expect(frame.getByRole("heading",{name:"temporary"})).toBeVisible();
+  await expect(page.getByText("ZIP TEMPORARY")).toBeVisible();
+  await expect(page.getByText("Aplikacionet (0)")).toBeVisible();
+  const saved=await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1"));
+  expect(!saved||!saved.includes("demo.zip")).toBe(true);
+  await page.getByRole("button",{name:"✕ Mbyll Quick Preview"}).click();
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"↑ Ngarko ZIP"})).toBeVisible();
+});
+
+test("ZIP with only source gives actionable message and never opens a phone iframe",async ({page})=>{
+  await page.goto("/");
+  const zip=makeZip([{name:"repo-main/package.json",content:'{"name":"web"}'},
+    {name:"repo-main/src/App.tsx",content:"export default function App(){}"}]);
+  const [picker]=await Promise.all([page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()]);
+  await picker.setFiles({name:"source.zip",mimeType:"application/zip",buffer:Buffer.from(zip)});
+  await expect(page.getByText(/Nuk gjendet dist\/index.html/)).toBeVisible();
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+});
