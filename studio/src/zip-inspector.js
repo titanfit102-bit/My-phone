@@ -17,7 +17,12 @@ function safePath(name) {
 function normalizeEntries(names) {
   const parts=names.map(n=>n.split("/").filter(Boolean));
   // GitHub ZIPs have one common root directory. Strip exactly one segment.
-  const shared=parts.length>0 && parts.every(p=>p.length>=2 && p[0]===parts[0][0]);
+  // Strip a GitHub repository wrapper, not actual build/source directories.
+  // Preserve semantic roots even when every entry shares a first path segment.
+  // Retain legacy GitHub wrapper normalization for one-file repository archives.
+  const reserved=new Set(["dist","build","out","src","app","android","ios","public"]);
+  const shared=parts.length>0 && !reserved.has((parts[0]?.[0]||"").toLowerCase()) &&
+    parts.every(p=>p.length>=2 && p[0]===parts[0][0]);
   const root=shared ? parts[0][0] : "";
   return {root,paths:parts.map(p=>(shared?p.slice(1):p).join("/")).filter(Boolean)};
 }
@@ -100,8 +105,12 @@ export function inspectZip(arrayBuffer, filename="archive.zip") {
   const uniquePaths=new Set(normalized.paths.map(x=>x.toLowerCase()));
   if(uniquePaths.size!==normalized.paths.length)fail("ZIP ka skedarë të dyfishtë pas normalizimit.");
   const result=classify(normalized.paths);
+  // Detect build entries independently of framework; GitHub source ZIPs may include dist/.
+  const candidates=normalized.paths.filter(path=>/(^|\/)(dist|build|out)\/index\.html$/i.test(path));
   return {
     filename,
+    buildCandidateCount:candidates.length,
+    buildCandidates:candidates.slice(0,10),
     count:names.length,
     archivedBytes:len,
     declaredBytes:declared,

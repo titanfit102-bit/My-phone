@@ -296,10 +296,12 @@ test("ZIP Quick Preview displays built Vite HTML only in sandbox, and closes wit
   await frame.getByRole("button",{name:"Click"}).click();
   await expect(frame.getByRole("heading",{name:"temporary"})).toBeVisible();
   await expect(page.getByText("ZIP TEMPORARY")).toBeVisible();
+  await expect(page.getByText("ENGINE CORE · OFFLINE_PAYLOAD_PREPARED")).toBeVisible();
   await expect(page.getByText("Aplikacionet (0)")).toBeVisible();
   const saved=await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1"));
   expect(!saved||!saved.includes("demo.zip")).toBe(true);
   await page.getByRole("button",{name:"✕ Mbyll Quick Preview"}).click();
+  await expect(page.getByText("ENGINE CORE · OFFLINE_PAYLOAD_PREPARED")).toHaveCount(0);
   await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
@@ -314,6 +316,7 @@ test("ZIP with only source gives actionable message and never opens a phone ifra
     page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()]);
   await picker.setFiles({name:"source.zip",mimeType:"application/zip",buffer:Buffer.from(zip)});
   await expect(page.getByText(/Nuk gjendet dist\/index.html/)).toBeVisible();
+  await expect(page.getByText("ENGINE CORE · SOURCE_BUILD_REQUIRED")).toBeVisible();
   await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
 });
 
