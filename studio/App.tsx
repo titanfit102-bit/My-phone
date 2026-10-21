@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, useWindowDimensions, View
@@ -7,7 +7,7 @@ import PreviewHost from "./src/PreviewHost";
 import {STORAGE_KEY, newProject, loadProjects, chooseMode, freshWebUrl} from "./src/project-model";
 import {
   SYNC_POLL_MS, FALLBACK_REFRESH_MS, FETCH_TIMEOUT_MS, MAX_MANIFEST_BYTES,
-  manifestUrl, parseManifest, initialSyncState, transitionSync, summarizeSync
+  manifestUrl, parseManifest, initialSyncState, transitionSync, applyPendingSync, summarizeSync
 } from "./src/live-sync";
 
 type Project = {id:string;name:string;github:string;web:string;native:string};
@@ -15,6 +15,8 @@ type Mode = "web" | "native";
 type Draft = {name:string;github:string;web:string;native:string};
 type DeploymentSync = {
   phase:string; strategy:string; revision:string|null; fingerprint:string|null;
+  displayedFingerprint:string|null; displayedRevision:string|null;
+  pendingFingerprint:string|null; pendingRevision:string|null;
   builtAt:string|null; checkedAt:number|null; changedAt:number|null; failures:number;
 };
 const EMPTY:Draft = {name:"",github:"",web:"",native:""};
@@ -70,6 +72,9 @@ export default function App() {
   const [loaded,setLoaded] = useState(false);
   const [revision,setRevision] = useState(1);
   const [syncEnabled,setSyncEnabled] = useState(true);
+  const [freezeEnabled,setFreezeEnabled] = useState(false);
+  const freezeRef = useRef(false);
+  const syncRef = useRef<DeploymentSync>(initialSyncState());
   const [lastUpdate,setLastUpdate] = useState<string|null>(null);
   const [syncState,setSyncState] = useState<DeploymentSync>(initialSyncState());
 
@@ -83,19 +88,39 @@ export default function App() {
   const current = projects.find(p=>p.id===selected) || null;
   const currentMode = current ? chooseMode(current,mode) as Mode : mode;
   const reload = useCallback(()=>{setRevision(r=>r+1);setLastUpdate(new Date().toLocaleTimeString("sq-AL"));},[]);
+  const applyPending = useCallback(()=>{
+    const next=applyPendingSync(syncRef.current);
+    if(!next.reload) return false;
+    syncRef.current=next.state;
+    setSyncState(next.state);
+    reload();
+    return true;
+  },[reload]);
+  const manualRefresh = useCallback(()=>{
+    if(!applyPending()) reload();
+  },[applyPending,reload]);
+  const toggleFreeze = () => {
+    const next=!freezeRef.current;
+    freezeRef.current=next;
+    setFreezeEnabled(next);
+    if(!next) applyPending(); // returning to auto mode explicitly accepts pending
+  };
+  const resetFreeze = () => {freezeRef.current=false;setFreezeEnabled(false);};
   // Read-only deploy observation. Browser CORS rules can block private deployments.
   // A successful manifest confirms only the published revision, NOT GitHub CI status.
   useEffect(()=>{
     if(!isWeb || !current?.web || currentMode!=="web" || !syncEnabled) {
-      setSyncState({...initialSyncState(),phase:!syncEnabled?"paused":"checking"});
+      const state={...initialSyncState(),phase:!syncEnabled?"paused":"checking"};
+      syncRef.current=state;
+      setSyncState(state);
       return;
     }
     let stopped = false;
     let inFlight = false;
     let request:AbortController|null = null;
-    let snapshot = initialSyncState();
     let lastFallback = Date.now();
-    setSyncState(snapshot);
+    syncRef.current=initialSyncState();
+    setSyncState(syncRef.current);
     async function check() {
       if(stopped || inFlight || (typeof document!=="undefined" && document.visibilityState==="hidden")) return;
       inFlight = true;
@@ -131,13 +156,13 @@ export default function App() {
         inFlight=false;
       }
       if(stopped) return; // Ignore late responses from another selected project.
-      const next = transitionSync(snapshot,outcome,Date.now());
-      snapshot = next.state;
+      const next = transitionSync(syncRef.current,outcome,Date.now(),{frozen:freezeRef.current});
+      syncRef.current=next.state;
       setSyncState(next.state);
       if(next.reload) {
         reload();
         lastFallback=Date.now();
-      } else if(next.state.strategy==="fallback" &&
+      } else if(!freezeRef.current && next.state.strategy==="fallback" &&
                 Date.now()-lastFallback>=FALLBACK_REFRESH_MS) {
         reload();
         lastFallback=Date.now();
@@ -166,6 +191,7 @@ export default function App() {
           new URL(value.web).origin === window.location.origin)
         throw new Error("Mos përdor adresën e vetë studios si demo: iframe në të njëjtin origin nuk lejohet.");
       const next=editing ? projects.map(p=>p.id===editing?value:p) : [...projects,value];
+      resetFreeze();
       setProjects(next);setSelected(value.id);setMode(chooseMode(value,mode) as Mode);
       setFormOpen(false);setEditing(null);setError("");setRevision(r=>r+1);
     } catch(e) {setError(e instanceof Error?e.message:"Të dhënat nuk u pranuan.");}
@@ -175,9 +201,11 @@ export default function App() {
     if(pendingRemoval!==project.id){setPendingRemoval(project.id);return;}
     setPendingRemoval(null);
     const next=projects.filter(p=>p.id!==project.id);
+    resetFreeze();
     setProjects(next);setSelected(next[0]?.id || null);setFormOpen(false);
   };
   const pick = (project:Project) => {
+    if(project.id!==selected) resetFreeze();
     setSelected(project.id);setFormOpen(false);setPendingRemoval(null);setMode(chooseMode(project,mode) as Mode);
     setRevision(r=>r+1);
   };
@@ -256,7 +284,7 @@ export default function App() {
               <Text style={styles.stageTitle}>{current?current.name:"Telefoni yt virtual"}</Text>
               <Text style={styles.stageSubtitle}>Një pamje për Web dhe një emulator real Android në cloud.</Text></View>
             <View style={styles.stageActions}><Badge good={!!current}>{current?"PROJEKT AKTIV":"NË PRITJE"}</Badge>
-              <RoundButton label="↻ Rifresko" onPress={reload}/></View>
+              <RoundButton label="↻ Rifresko" onPress={manualRefresh}/></View>
           </View>
           <View style={styles.modeSwitcher}>
             <Pressable accessibilityRole="button" onPress={()=>{setMode("web");setRevision(r=>r+1);}}
@@ -269,7 +297,9 @@ export default function App() {
           <View style={styles.stageNote}><Text style={styles.stageNoteText}>
             {currentMode==="native"
               ?"APK-ja ekzekutohet në Appetize pasi të jetë ngarkuar aty. Nisja e sesionit mund të konsumojë minuta me pagesë."
-              :"Kontrollojmë versionin çdo 15 sekonda. Kur mungojnë metadata-t, rifreskojmë çdo 60 sekonda dhe e shënojmë si të paverifikuar."}
+              :freezeEnabled
+                ?"Session Freeze: kontrollojmë versionin çdo 15 sekonda, pa rifreskuar automatikisht pamjen."
+                :"Kontrollojmë versionin çdo 15 sekonda. Kur mungojnë metadata-t, rifreskojmë çdo 60 sekonda dhe e shënojmë si të paverifikuar."}
           </Text></View>
           {current && currentMode==="web" && <View style={styles.monitorPanel}>
             <View style={styles.monitorHeader}>
@@ -280,10 +310,22 @@ export default function App() {
               <Badge good={syncSummary.ok}>{syncSummary.title}</Badge>
             </View>
             <Text style={styles.monitorDescription}>{syncSummary.detail}</Text>
+            {freezeEnabled&&<View style={styles.freezeNotice}>
+              <Text style={styles.freezeNoticeText}>Session Freeze aktiv — rifreskimi automatik i telefonit është ndalur, por kontrolli i versioneve vazhdon.</Text>
+            </View>}
+            {!!syncState.pendingRevision&&<View style={styles.pendingNotice}>
+              <Text style={styles.pendingTitle}>Version i ri në pritje: {syncState.pendingRevision.slice(0,12)}</Text>
+              <Text style={styles.pendingText}>Mund të vazhdosh testimin. Ndryshimi do të aplikohet vetëm kur ta zgjedhësh.</Text>
+              <View style={styles.pendingAction}><RoundButton label="Apliko versionin e ri" primary onPress={()=>{applyPending();}}/></View>
+            </View>}
             <View style={styles.monitorMetrics}>
               <View style={styles.monitorMetric}>
                 <Text style={styles.metricLabel}>VERSION I NJOHUR</Text>
                 <Text selectable style={styles.metricValue}>{syncState.revision ? syncState.revision.slice(0,12) : "—"}</Text>
+              </View>
+              <View style={styles.monitorMetric}>
+                <Text style={styles.metricLabel}>REFERENCA E PAMJES</Text>
+                <Text selectable style={styles.metricValue}>{syncState.displayedRevision ? syncState.displayedRevision.slice(0,12) : "—"}</Text>
               </View>
               <View style={styles.monitorMetric}>
                 <Text style={styles.metricLabel}>KONTROLLI I FUNDIT</Text>
@@ -320,6 +362,7 @@ export default function App() {
               <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"URL e demonstrimit e konfiguruar":"Në pritje të lidhjes"}</Text></View>
               {current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
               <Text style={styles.infoSmall}>{currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
+              {currentMode==="web"&&syncEnabled&&<RoundButton label={freezeEnabled?"Çaktivizo Session Freeze":"Aktivizo Session Freeze"} onPress={toggleFreeze}/>}
               {currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
               {lastUpdate&&<Text style={styles.infoSmall}>Rifreskimi i fundit: {lastUpdate}</Text>}
             </View>
@@ -431,6 +474,12 @@ const styles=StyleSheet.create({
   monitorHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8},
   monitorTitle:{fontSize:17,fontWeight:"900",color:C.text,marginTop:7},
   monitorDescription:{fontSize:11,color:C.soft,marginTop:12,lineHeight:18},
+  freezeNotice:{marginTop:12,padding:11,borderRadius:9,backgroundColor:"#173A36",borderWidth:1,borderColor:"#397869"},
+  freezeNoticeText:{color:"#A5E9D4",fontSize:11,lineHeight:18},
+  pendingNotice:{marginTop:12,padding:13,borderRadius:10,backgroundColor:"#2B2537",borderWidth:1,borderColor:"#6F5872"},
+  pendingTitle:{color:"#FFFFFF",fontSize:13,fontWeight:"800"},
+  pendingText:{color:"#DBCEDE",fontSize:11,lineHeight:18,marginTop:7},
+  pendingAction:{marginTop:11,alignSelf:"flex-start"},
   monitorMetrics:{marginTop:15,flexDirection:"row",flexWrap:"wrap",gap:9},
   monitorMetric:{flexGrow:1,flexBasis:150,backgroundColor:"#0B1527",borderWidth:1,borderColor:C.outline,padding:12,borderRadius:10},
   metricLabel:{fontSize:9,color:C.muted,fontWeight:"800",letterSpacing:.5},
