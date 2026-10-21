@@ -89,10 +89,10 @@ test("sync checks a published manifest and refreshes only on a new revision", as
   await createProject(page, "Sync Test");
   await expect(preview(page, "Sync Test").getByTestId("mock-version")).toHaveText("Version alpha");
   await expect(page.getByText("Publikimi u verifikua")).toBeVisible();
-  await expect(page.getByText("alpha", {exact: true})).toBeVisible();
+  await expect(page.getByText("alpha", {exact: true}).first()).toBeVisible();
   const loadsBefore = observed.loads;
   revision = "beta";
-  await expect(page.getByText("beta", {exact: true})).toBeVisible({timeout: 34_000});
+  await expect(page.getByText("beta", {exact: true}).first()).toBeVisible({timeout: 34_000});
   await expect(preview(page, "Sync Test").getByTestId("mock-version")).toHaveText("Version beta");
   expect(observed.loads).toBeGreaterThan(loadsBefore);
   const stableLoads = observed.loads;
