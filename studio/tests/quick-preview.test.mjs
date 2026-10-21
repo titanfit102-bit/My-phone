@@ -133,3 +133,98 @@ test("local CSS asset count is limited to prevent unbounded embedded payloads",a
   ];
   await assert.rejects(buildQuickPreview(makeZip(items),"many-assets.zip"),/numrin e asset-eve/);
 });
+
+test("repeated cached asset references cannot amplify generated CSS beyond 8 MiB",async()=>{
+  const css=Array.from({length:7},(_,i)=>'.x'+i+'{background:url("./large.png")}').join("\n");
+  const files=[
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script><link rel="stylesheet" href="/assets/a.css"><link rel="stylesheet" href="/assets/b.css">'},
+    {name:"dist/assets/main.js",content:"console.log('ok')"},
+    {name:"dist/assets/a.css",content:css},
+    {name:"dist/assets/b.css",content:css},
+    {name:"dist/assets/large.png",bytes:new Uint8Array(512*1024),method:8}
+  ];
+  await assert.rejects(buildQuickPreview(makeZip(files),"amplification.zip"),/CSS.*gjeneruar.*kufirin/);
+});
+
+test("HTML style-tag escaping is included in the generated CSS budget",async()=>{
+  const css='.x{background:url("./large.png")}\n'.repeat(11)+
+    '/*'+'</style'.repeat(98000)+'*/';
+  await assert.rejects(buildQuickPreview(makeZip([
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script><link rel="stylesheet" href="/assets/a.css">'},
+    {name:"dist/assets/main.js",content:"console.log('ok')"},
+    {name:"dist/assets/a.css",content:css,method:8},
+    {name:"dist/assets/large.png",bytes:new Uint8Array(512*1024),method:8}
+  ])),/CSS.*gjeneruar.*kufirin/);
+});
+
+test("aggregate extracted asset bytes and CSS source bytes remain bounded",async()=>{
+  const base=[
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script><link rel="stylesheet" href="/assets/a.css"><link rel="stylesheet" href="/assets/b.css">'},
+    {name:"dist/assets/main.js",content:"console.log('ok')"}
+  ];
+  await assert.rejects(buildQuickPreview(makeZip([...base,
+    {name:"dist/assets/a.css",content:"/*"+"x".repeat(1024*1024)+"*/",method:8},
+    {name:"dist/assets/b.css",content:"/*"+"x".repeat(1024*1024)+"*/",method:8}
+  ])),/CSS.*madhësinë totale/);
+  await assert.rejects(buildQuickPreview(makeZip([...base,
+    {name:"dist/assets/a.css",content:Array.from({length:7},(_,i)=>'.x'+i+'{background:url("./img'+i+'.png")}').join("")},
+    {name:"dist/assets/b.css",content:"body{}"},
+    ...Array.from({length:7},(_,i)=>({name:'dist/assets/img'+i+'.png',bytes:new Uint8Array(512*1024),method:8}))
+  ])),/CSS.*madhësinë totale të asset-eve/);
+});
+
+test("corrupted stored bytes and forged deflated CRC fail integrity validation",async()=>{
+  const files=[
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script>'},
+    {name:"dist/assets/main.js",content:"console.log('original')"}
+  ];
+  const stored=makeZip(files);
+  // Change a JS string literal without updating its checksums or breaking syntax.
+  const bytes=new Uint8Array(stored),position=Buffer.from(stored).indexOf("original");
+  bytes[position]^=1;
+  await assert.rejects(buildQuickPreview(stored),/CRC/);
+  const deflated=makeZip(files.map(f=>({...f,method:8}))),d=new DataView(deflated);
+  const cd=d.getUint32(deflated.byteLength-6,true);
+  d.setUint32(14,0xffffffff,true);d.setUint32(cd+16,0xffffffff,true);
+  await assert.rejects(buildQuickPreview(deflated),/CRC/);
+});
+
+test("selected local headers must match central flags and sizes",async()=>{
+  const make=()=>makeZip([
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script>'},
+    {name:"dist/assets/main.js",content:"console.log('ok')"}
+  ]);
+  const flags=make();new DataView(flags).setUint16(6,1,true);
+  await assert.rejects(buildQuickPreview(flags),/local header/);
+  const size=make();new DataView(size).setUint32(22,1,true);
+  await assert.rejects(buildQuickPreview(size),/local header/);
+});
+
+test("deflate output cannot exceed a forged declared size",async()=>{
+  const zip=makeZip([
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script>'},
+    {name:"dist/assets/main.js",content:"A".repeat(1024*1024),method:8,size:1}
+  ]);
+  await assert.rejects(buildQuickPreview(zip),/tejkalon|nuk përputhet/);
+});
+
+test("valid streaming ZIP data descriptors remain compatible",async()=>{
+  const zip=makeZip([
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script>',method:8,flags:8},
+    {name:"dist/assets/main.js",content:"console.log('descriptor build')",method:8,flags:8}
+  ]);
+  const result=await buildQuickPreview(zip);
+  assert.match(result.srcDoc,/descriptor build/);
+});
+
+test("selected entry payload cannot overlap the central directory",async()=>{
+  const zip=makeZip([
+    {name:"dist/index.html",content:'<script src="/assets/main.js"></script>'},
+    {name:"dist/assets/main.js",content:"console.log('ok')"}
+  ]),d=new DataView(zip);
+  const cd=d.getUint32(zip.byteLength-6,true);
+  const forged=cd+1-(30+d.getUint16(26,true));
+  d.setUint32(18,forged,true);d.setUint32(22,forged,true);
+  d.setUint32(cd+20,forged,true);d.setUint32(cd+24,forged,true);
+  await assert.rejects(buildQuickPreview(zip),/prerë/);
+});

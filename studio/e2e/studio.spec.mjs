@@ -238,6 +238,7 @@ for(const defense of ["csp","x-frame-options"]){
 }
 
 import {makeZip} from "../tests/zip-fixtures.mjs";
+import {localFont} from "../tests/font-fixture.mjs";
 
 test("GitHub source-only ZIP explains that build is needed and does not execute source",async ({page})=>{
   await page.goto("/");
@@ -367,9 +368,10 @@ test("Advanced ZIP keeps multiple CSS and local raster images inside isolated ph
   const zip=makeZip([
     {name:"example-main/dist/index.html",content:'<!doctype html><link rel="stylesheet" href="/assets/a.css"><link rel="stylesheet" href="/assets/b.css"><script type="module" src="/assets/app.js"></script>'},
     {name:"example-main/dist/assets/app.js",content:"document.getElementById('root').textContent='Advanced ZIP Working';"},
-    {name:"example-main/dist/assets/a.css",content:"#root{background-image:url('../images/pixel.png')}",method:8},
+    {name:"example-main/dist/assets/a.css",content:"@font-face{font-family:StudioFixture;src:url('./demo.woff') format('woff')}#root{font-family:StudioFixture;background-image:url('../images/pixel.png')}",method:8},
     {name:"example-main/dist/assets/b.css",content:"#root{color:rgb(10, 110, 90)}"},
-    {name:"example-main/dist/images/pixel.png",bytes:pixel,method:8}
+    {name:"example-main/dist/images/pixel.png",bytes:pixel,method:8},
+    {name:"example-main/dist/assets/demo.woff",bytes:localFont,method:8}
   ]);
   const [picker]=await Promise.all([
     page.waitForEvent("filechooser"),
@@ -385,7 +387,52 @@ test("Advanced ZIP keeps multiple CSS and local raster images inside isolated ph
   }));
   expect(styling.background).toContain("data:image/png;base64,");
   expect(styling.color).toBe("rgb(10, 110, 90)");
+  const decoded=await root.evaluate(async el=>{
+    const fonts=await document.fonts.load('16px StudioFixture','Advanced ZIP Working');
+    const image=new Image();
+    image.src=getComputedStyle(el).backgroundImage.slice(5,-2);
+    await image.decode();
+    return {fonts:fonts.length,fontStatus:fonts[0]?.status,imageWidth:image.naturalWidth};
+  });
+  expect(decoded).toEqual({fonts:1,fontStatus:'loaded',imageWidth:1});
   await expect(page.getByText("ENGINE CORE · OFFLINE_PAYLOAD_PREPARED")).toBeVisible();
   await page.getByRole("button",{name:"✕ Mbyll Quick Preview"}).click();
   await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+});
+
+test("ZIP sandbox blocks parent access, fetch, remote images and popups; storage dies with frame",async ({page})=>{
+  let sent=0;
+  await page.route('https://zip-egress.example.test/**',route=>{sent++;return route.abort();});
+  await page.goto('/');
+  const zip=makeZip([
+    {name:'dist/index.html',content:'<script src="/assets/main.js"></script>'},
+    {name:'dist/assets/main.js',content:`(async()=>{
+      const result={origin:self.origin,previous:localStorage.getItem('zip-session')};
+      localStorage.setItem('zip-session','temporary');
+      try{parent.document.body.dataset.zipTouched='yes';result.parentBlocked=false;}
+      catch{result.parentBlocked=true;}
+      result.popupBlocked=window.open('https://zip-egress.example.test/popup')===null;
+      try{await fetch('https://zip-egress.example.test/fetch');result.fetchBlocked=false;}
+      catch{result.fetchBlocked=true;}
+      const image=new Image();
+      result.imageBlocked=await new Promise(resolve=>{
+        image.onload=()=>resolve(false);image.onerror=()=>resolve(true);
+        image.src='https://zip-egress.example.test/pixel.png';
+      });
+      document.getElementById('root').textContent=JSON.stringify(result);
+    })();`}
+  ]);
+  for(let i=0;i<2;i++){
+    const [picker]=await Promise.all([page.waitForEvent('filechooser'),page.getByRole('button',{name:'↑ Ngarko ZIP'}).click()]);
+    await picker.setFiles({name:'isolation.zip',mimeType:'application/zip',buffer:Buffer.from(zip)});
+    const iframe=page.locator('iframe[title="Quick Preview · ZIP"]');
+    await expect(iframe).toHaveAttribute('sandbox','allow-scripts');
+    const root=page.frameLocator('iframe[title="Quick Preview · ZIP"]').locator('#root');
+    await expect(root).toContainText('imageBlocked');
+    expect(JSON.parse(await root.innerText())).toEqual({origin:'null',previous:null,parentBlocked:true,popupBlocked:true,fetchBlocked:true,imageBlocked:true});
+    expect(await page.evaluate(()=>({touched:document.body.dataset.zipTouched??null,saved:localStorage.getItem('zip-session')}))).toEqual({touched:null,saved:null});
+    await page.getByRole('button',{name:'✕ Mbyll Quick Preview'}).click();
+    await expect(iframe).toHaveCount(0);
+  }
+  expect(sent).toBe(0);
 });

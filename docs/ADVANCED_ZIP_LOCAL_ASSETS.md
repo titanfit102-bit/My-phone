@@ -27,8 +27,13 @@ The existing ZIP structural checks apply first: ≤32 MiB ZIP, ≤5,000 central-
 | One local raster/font CSS asset | 512 KiB |
 | Unique referenced assets | 24 |
 | Sum of extracted referenced assets | 3 MiB |
+| Generated CSS after inlining (all references, including repeats) | 8 MiB |
+
+The generated-CSS budget is shared across stylesheets and counts UTF-8 bytes for every replacement, including cache hits. Caching a file avoids repeated extraction, but does not make repeated base64 output free. Selected entries are checked against CRC32 and local/central header metadata; their compressed payloads must end before the central directory. Deflate reads stop as soon as actual output exceeds the declared size or extraction cap. Streaming ZIP data descriptors remain supported. CRC32 detects corruption; it is not a signature or proof of trusted code.
 
 Build and archive validation cannot attest that original JavaScript is harmless; the iframe remains a restricted best-effort preview for trusted user-owned builds.
+
+The CSP denies fetch/XHR and external subresources, and the iframe sandbox denies access to the Studio document, top navigation and popups. This is not a total network-egress or resource-consumption sandbox for hostile JavaScript: a script can attempt to navigate its own frame, consume CPU/memory or change its own in-memory document. Only load trusted builds. No backend code is executed by the ZIP parser.
 
 ## Deliberate limits
 
@@ -43,7 +48,7 @@ Build and archive validation cannot attest that original JavaScript is harmless;
 ## Verification
 
 - Unit: multiple CSS, duplicate local references, binary raster/font inlining, path boundaries, missing files, remote URLs, SVG refusal, CSS imports, per-asset and aggregate/count limits, legacy single-CSS behavior.
-- Browser desktop/mobile: uploaded fixture produces real CSS computed styles and a local raster `data:` URI in the sandbox iframe; close removes iframe, existing project features must not regress.
+- Browser desktop/mobile: uploaded fixture produces real CSS computed styles, a decoded local raster image and a loaded font in the sandbox iframe. Verify parent isolation, CSP-blocked fetch/images, blocked popups and session storage reset after close/reopen; existing project features must not regress.
 - CI: Node unit, TypeScript, Expo Web export, repo-isolation and Playwright all pass on exact HEAD.
 - Test with user-owned real ZIP for acceptance, and verify the actual Preview SHA.
 - Security advisory review remains necessary before any Production release. Parent PR #12, #13, #14 must be merged in order only with an explicit production release decision.

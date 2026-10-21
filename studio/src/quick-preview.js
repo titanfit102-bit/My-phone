@@ -4,6 +4,10 @@ import {inspectZip} from "./zip-inspector.js";
 const MAX_HTML=256*1024, MAX_JS=8*1024*1024, MAX_CSS_TOTAL=2*1024*1024;
 const MAX_STYLESHEETS=4, MAX_LOCAL_ASSETS=24, MAX_ASSET_BYTES=512*1024;
 const MAX_TOTAL_ASSET_BYTES=3*1024*1024;
+// Count every replacement, including cache hits: a small stylesheet can repeat
+// one large data URI thousands of times despite a bounded unique-asset cache.
+const MAX_EMBEDDED_CSS_BYTES=8*1024*1024;
+const encoder=new TextEncoder();
 const MIME_BY_EXT={
   png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",
   webp:"image/webp",avif:"image/avif",woff:"font/woff",woff2:"font/woff2",
@@ -12,6 +16,17 @@ const MIME_BY_EXT={
 const decoder=new TextDecoder("utf-8",{fatal:true});
 const u16=(v,p)=>v.getUint16(p,true),u32=(v,p)=>v.getUint32(p,true);
 const reject=message=>{throw Error(message);};
+const crcTable=Uint32Array.from({length:256},(_,i)=>{
+  let value=i;
+  for(let bit=0;bit<8;bit++)value=(value>>>1)^((value&1)?0xedb88320:0);
+  return value>>>0;
+});
+function verifyCrc(bytes,expected){
+  let crc=0xffffffff;
+  for(const byte of bytes)crc=(crc>>>8)^crcTable[(crc^byte)&255];
+  if(((crc^0xffffffff)>>>0)!==expected)reject("CRC ZIP nuk përputhet.");
+  return bytes;
+}
 
 function entries(buffer){
   inspectZip(buffer,"selected.zip"); // Reject malicious ZIP metadata first.
@@ -21,7 +36,8 @@ function entries(buffer){
     if(u32(view,i)===0x06054b50&&i+22+u16(view,i+20)===len){end=i;break;}
   }
   if(end<0)reject("Nuk u gjet indeksi ZIP.");
-  let p=u32(view,end+16);
+  const dataEnd=u32(view,end+16);
+  let p=dataEnd;
   const entries=new Map(), count=u16(view,end+10);
   for(let i=0;i<count;i++){
     if(p+46>len||u32(view,p)!==0x02014b50)reject("Indeksi ZIP i dëmtuar.");
@@ -29,6 +45,7 @@ function entries(buffer){
     if(p+46+n+ex+comment>len)reject("Indeksi ZIP i prerë.");
     const name=decoder.decode(new Uint8Array(buffer,p+46,n));
     if(!name.endsWith("/"))entries.set(name,{name,method:u16(view,p+10),
+      flags:u16(view,p+8),crc:u32(view,p+16),dataEnd,
       packed:u32(view,p+20),size:u32(view,p+24),offset:u32(view,p+42)});
     p+=46+n+ex+comment;
   }
@@ -52,17 +69,25 @@ function getAttribute(html,tag,attribute){
 async function getBytes(buffer,entry,limit){
   if(!entry||entry.size>limit)reject("Asset-i i Web-it mungon ose është tepër i madh.");
   const d=new DataView(buffer),p=entry.offset;
-  if(p+30>buffer.byteLength||u32(d,p)!==0x04034b50||
-      u16(d,p+8)!==entry.method)reject("ZIP local header i dëmtuar.");
+  if(p+30>entry.dataEnd||u32(d,p)!==0x04034b50||
+      u16(d,p+8)!==entry.method||u16(d,p+6)!==entry.flags)
+    reject("ZIP local header i dëmtuar.");
+  // With data descriptors, CRC/sizes may be zero in the local header. The
+  // central directory and actual decompressed bytes still remain authoritative.
+  for(const [offset,expected] of [[14,entry.crc],[18,entry.packed],[22,entry.size]]){
+    const value=u32(d,p+offset);
+    if(value!==expected&&(!(entry.flags&8)||value!==0))
+      reject("ZIP local header nuk përputhet me indeksin.");
+  }
   const n=u16(d,p+26),ex=u16(d,p+28);
   const start=p+30+n+ex;
-  if(start+entry.packed>buffer.byteLength)reject("Asset-i ZIP është i prerë.");
+  if(start+entry.packed>entry.dataEnd)reject("Asset-i ZIP është i prerë.");
   if(decoder.decode(new Uint8Array(buffer,p+30,n))!==entry.name)
     reject("Emri i ZIP nuk përputhet.");
   const bytes=new Uint8Array(buffer,start,entry.packed);
   if(entry.method===0){
     if(bytes.length!==entry.size)reject("Madhësia ZIP nuk përputhet.");
-    return new Uint8Array(bytes);
+    return verifyCrc(new Uint8Array(bytes),entry.crc);
   }
   if(entry.method!==8||typeof DecompressionStream!=="function")
     reject("ZIP Deflate nuk mbështetet në këtë shfletues.");
@@ -74,13 +99,15 @@ async function getBytes(buffer,entry,limit){
       const {value,done}=await reader.read();
       if(done)break;
       total+=value.length;
-      if(total>limit){await reader.cancel();reject("Asset-i tejkalon kufirin.");}
+      if(total>Math.min(limit,entry.size)){
+        await reader.cancel();reject("Asset-i tejkalon kufirin ose madhësinë e deklaruar.");
+      }
       chunks.push(value);
     }
     if(total!==entry.size)reject("Madhësia ZIP nuk përputhet.");
     const out=new Uint8Array(total);let i=0;
     for(const part of chunks){out.set(part,i);i+=part.length;}
-    return out;
+    return verifyCrc(out,entry.crc);
   }catch(e){if(/tejkalon|nuk përputhet/.test(String(e)))throw e;
     reject("ZIP nuk mund të çkompresohet.");
   }finally{try{reader?.releaseLock();}catch{}}
@@ -114,15 +141,22 @@ async function inlineCssReferences(css,stylesheet,index,all,buffer,cache,budget)
     reject("CSS @import nuk mbështetet në preview offline.");
   const ref=/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi;
   let output="",position=0;
+  const append=text=>{
+    text=escapeTag(text,"style");
+    budget.cssBytes+=encoder.encode(text).length;
+    if(budget.cssBytes>MAX_EMBEDDED_CSS_BYTES)
+      reject("CSS i gjeneruar tejkalon kufirin 8 MiB.");
+    output+=text;
+  };
   for(const match of css.matchAll(ref)){
     const value=(match[1]??match[2]??match[3]??"").trim();
-    output+=css.slice(position,match.index);
+    append(css.slice(position,match.index));
     position=match.index+match[0].length;
-    if(value.startsWith("#")){output+=match[0];continue;}
+    if(value.startsWith("#")){append(match[0]);continue;}
     if(value.startsWith("data:")){
       if(!/^data:(?:image\/(?:png|jpeg|gif|webp|avif)|font\/(?:woff2?|ttf|otf));base64,[A-Za-z0-9+/=]+$/i.test(value))
         reject("CSS data URL i pambështetur.");
-      output+=match[0];continue;
+      append(match[0]);continue;
     }
     const path=resolveCssAsset(index,stylesheet,value);
     const extension=path.split(".").at(-1)?.toLowerCase();
@@ -141,9 +175,10 @@ async function inlineCssReferences(css,stylesheet,index,all,buffer,cache,budget)
       uri="data:"+mime+";base64,"+toBase64(bytes);
       cache.set(path,uri);
     }
-    output+='url("'+uri+'")';
+    append('url("'+uri+'")');
   }
-  return output+css.slice(position);
+  append(css.slice(position));
+  return output;
 }
 
 const escapeTag=(s,tag)=>s.replace(new RegExp("</"+tag,"gi"),"<\\/"+tag);
@@ -170,7 +205,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     reject("Quick Preview mbështet vetëm build Vite me një bundle JS dhe maksimumi katër CSS lokale.");
   const jsPath=locateAsset(index,js[0]);
   const code=decoder.decode(await getBytes(buffer,all.get(jsPath),MAX_JS));
-  const cache=new Map(),budget={bytes:0};
+  const cache=new Map(),budget={bytes:0,cssBytes:0};
   const styles=[];let totalCssBytes=0;
   for (const url of css){
     const path=locateAsset(index,url);
@@ -179,6 +214,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     totalCssBytes+=file.size;
     if(totalCssBytes>MAX_CSS_TOTAL)reject("CSS tejkalon madhësinë totale të lejuar.");
     const source=decoder.decode(await getBytes(buffer,file,MAX_CSS_TOTAL));
+    if(styles.length)budget.cssBytes+=1; // The separator in styles.join("\n").
     styles.push(await inlineCssReferences(source,path,index,all,buffer,cache,budget));
   }
   const style=styles.join("\n");
@@ -186,7 +222,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
   const srcDoc='<!doctype html><html><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
     '<meta http-equiv="Content-Security-Policy" content="'+policy+'">'+
-    '<style>html,body,#root{min-height:100%;margin:0}</style><style>'+escapeTag(style,"style")+
+    '<style>html,body,#root{min-height:100%;margin:0}</style><style>'+style+
     '</style></head><body><div id="root"></div><script>'+
     escapeTag(sessionStorageShim,"script")+'</script><script type="module">'+
     escapeTag(code,"script")+'</script></body></html>';
