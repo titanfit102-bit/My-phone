@@ -34,6 +34,11 @@ export function initialSyncState() {
     strategy: "unknown",
     revision: null,
     fingerprint: null,
+    // observed publication vs the version last explicitly applied to the iframe
+    displayedFingerprint: null,
+    displayedRevision: null,
+    pendingFingerprint: null,
+    pendingRevision: null,
     builtAt: null,
     checkedAt: null,
     changedAt: null,
@@ -42,11 +47,17 @@ export function initialSyncState() {
 }
 
 /** Pure transition: no network, no timers, no browser globals. */
-export function transitionSync(prev, outcome, checkedAt) {
+export function transitionSync(prev, outcome, checkedAt, {frozen = false} = {}) {
   const state = {...prev, checkedAt};
   if (outcome?.kind === "published" && outcome.manifest) {
     const manifest = outcome.manifest;
     const isNew = !!prev.fingerprint && prev.fingerprint !== manifest.fingerprint;
+    // First observation anchors the already-mounted iframe without reloading it.
+    // "Displayed" is an observer-side reference, NOT a guarantee of pinned bytes:
+    // the embedded application can navigate or refresh on its own.
+    const displayed = prev.displayedFingerprint || manifest.fingerprint;
+    state.displayedFingerprint = displayed;
+    state.displayedRevision = prev.displayedRevision || manifest.revision;
     state.phase = "published";
     state.strategy = "manifest";
     state.revision = manifest.revision;
@@ -54,7 +65,23 @@ export function transitionSync(prev, outcome, checkedAt) {
     state.builtAt = manifest.builtAt;
     state.changedAt = isNew ? checkedAt : prev.changedAt;
     state.failures = 0;
-    return {state, reload: isNew};
+
+    if (manifest.fingerprint === displayed) {
+      // A deployment rollback may match the visible reference again.
+      state.pendingFingerprint = null;
+      state.pendingRevision = null;
+      return {state, reload: false};
+    }
+    if (frozen) {
+      state.pendingFingerprint = manifest.fingerprint;
+      state.pendingRevision = manifest.revision;
+      return {state, reload: false};
+    }
+    state.displayedFingerprint = manifest.fingerprint;
+    state.displayedRevision = manifest.revision;
+    state.pendingFingerprint = null;
+    state.pendingRevision = null;
+    return {state, reload: true};
   }
   if (outcome?.kind === "restricted") {
     state.phase = "restricted";
@@ -73,6 +100,22 @@ export function transitionSync(prev, outcome, checkedAt) {
   state.strategy = "fallback";
   state.failures += 1;
   return {state, reload: false};
+}
+
+// Manual acceptance updates the observer reference exactly once. Calling it
+// repeatedly without a pending release never triggers another automatic reload.
+export function applyPendingSync(prev) {
+  if (!prev.pendingFingerprint) return {state: prev, reload: false};
+  return {
+    state: {
+      ...prev,
+      displayedFingerprint: prev.pendingFingerprint,
+      displayedRevision: prev.pendingRevision,
+      pendingFingerprint: null,
+      pendingRevision: null
+    },
+    reload: true
+  };
 }
 
 export function summarizeSync(state) {

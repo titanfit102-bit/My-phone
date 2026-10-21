@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  manifestUrl, parseManifest, transitionSync, initialSyncState, summarizeSync,
+  manifestUrl, parseManifest, transitionSync, initialSyncState, applyPendingSync, summarizeSync,
   SYNC_POLL_MS, FALLBACK_REFRESH_MS
 } from "../src/live-sync.js";
 
@@ -46,4 +46,57 @@ test("failed, forbidden and missing metadata never claim success", () => {
     assert.equal(summarizeSync(out.state).ok,false);
   }
   assert.ok(FALLBACK_REFRESH_MS>SYNC_POLL_MS);
+});
+
+test("Session Freeze preserves a visible reference and holds updates until explicit apply", () => {
+  const outcome = revision => ({kind:"published",manifest:parseManifest({revision})});
+  const first=transitionSync(initialSyncState(),outcome("alpha"),100).state;
+  assert.equal(first.displayedRevision,"alpha");
+  const frozen=transitionSync(first,outcome("beta"),200,{frozen:true});
+  assert.equal(frozen.reload,false);
+  assert.equal(frozen.state.revision,"beta");
+  assert.equal(frozen.state.displayedRevision,"alpha");
+  assert.equal(frozen.state.pendingRevision,"beta");
+  const unchanged=transitionSync(frozen.state,outcome("beta"),300,{frozen:true});
+  assert.equal(unchanged.reload,false);
+  assert.equal(unchanged.state.pendingRevision,"beta");
+  const applied=applyPendingSync(unchanged.state);
+  assert.equal(applied.reload,true);
+  assert.equal(applied.state.displayedRevision,"beta");
+  assert.equal(applied.state.pendingRevision,null);
+  assert.equal(applyPendingSync(applied.state).reload,false);
+  assert.equal(transitionSync(applied.state,outcome("beta"),400,{frozen:true}).reload,false);
+});
+test("Session Freeze observes the latest of multiple releases and drops a rolled-back pending version",()=>{
+  const o=revision=>({kind:"published",manifest:parseManifest({revision})});
+  const first=transitionSync(initialSyncState(),o("alpha"),100).state;
+  const beta=transitionSync(first,o("beta"),200,{frozen:true}).state;
+  const gamma=transitionSync(beta,o("gamma"),300,{frozen:true}).state;
+  assert.equal(gamma.displayedRevision,"alpha");
+  assert.equal(gamma.pendingRevision,"gamma");
+  const restored=transitionSync(gamma,o("alpha"),400,{frozen:true});
+  assert.equal(restored.reload,false);
+  assert.equal(restored.state.pendingRevision,null);
+  assert.equal(restored.state.displayedRevision,"alpha");
+});
+test("Switching from Session Freeze to automatic mode applies exactly one queued release",()=>{
+  const o=revision=>({kind:"published",manifest:parseManifest({revision})});
+  const first=transitionSync(initialSyncState(),o("a"),100).state;
+  const frozen=transitionSync(first,o("b"),200,{frozen:true}).state;
+  const auto=transitionSync(frozen,o("b"),300,{frozen:false});
+  assert.equal(auto.reload,true);
+  assert.equal(auto.state.displayedRevision,"b");
+  assert.equal(auto.state.pendingRevision,null);
+  assert.equal(transitionSync(auto.state,o("b"),400,{frozen:false}).reload,false);
+});
+test("Network and authorization failures never force a frozen pending deployment",()=>{
+  const o=revision=>({kind:"published",manifest:parseManifest({revision})});
+  const first=transitionSync(initialSyncState(),o("a"),100).state;
+  const frozen=transitionSync(first,o("b"),200,{frozen:true}).state;
+  for (const kind of ["unreachable","unsupported","restricted"]) {
+    const failed=transitionSync(frozen,{kind},300,{frozen:true});
+    assert.equal(failed.reload,false);
+    assert.equal(failed.state.pendingRevision,"b");
+    assert.equal(failed.state.displayedRevision,"a");
+  }
 });

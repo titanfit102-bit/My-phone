@@ -89,10 +89,10 @@ test("sync checks a published manifest and refreshes only on a new revision", as
   await createProject(page, "Sync Test");
   await expect(preview(page, "Sync Test").getByTestId("mock-version")).toHaveText("Version alpha");
   await expect(page.getByText("Publikimi u verifikua")).toBeVisible();
-  await expect(page.getByText("alpha", {exact: true})).toBeVisible();
+  await expect(page.getByText("alpha", {exact: true}).first()).toBeVisible();
   const loadsBefore = observed.loads;
   revision = "beta";
-  await expect(page.getByText("beta", {exact: true})).toBeVisible({timeout: 34_000});
+  await expect(page.getByText("beta", {exact: true}).first()).toBeVisible({timeout: 34_000});
   await expect(preview(page, "Sync Test").getByTestId("mock-version")).toHaveText("Version beta");
   expect(observed.loads).toBeGreaterThan(loadsBefore);
   const stableLoads = observed.loads;
@@ -116,4 +116,29 @@ test("unsupported manifest uses fallback and keeps the external-open action", as
   await expect(preview(page, "Fallback Test").getByRole("heading", {name: "Fallback test page"})).toBeVisible();
   await expect(page.getByRole("button", {name: /Hap jashtë studios/})).toBeVisible();
   await expect(page.getByText("I paverifikuar", {exact: true})).toBeVisible();
+});
+
+test("Session Freeze preserves an unfinished iframe form until the user accepts a new version", async ({page}) => {
+  let release = "alpha";
+  const observed = await mockApplication(page,()=>release);
+  await page.goto("/");
+  await createProject(page,"Freeze Test");
+  const frame=preview(page,"Freeze Test");
+  await expect(frame.getByTestId("mock-version")).toHaveText("Version alpha");
+  await expect(page.getByText("Publikimi u verifikua")).toBeVisible();
+  await page.getByRole("button",{name:"Aktivizo Session Freeze"}).click();
+  await expect(page.getByText(/Session Freeze aktiv/)).toBeVisible();
+  await frame.getByPlaceholder("Mock app form input").fill("Formular i paperfunduar");
+  const initialLoads=observed.loads;
+  release="beta";
+  await expect(page.getByText("Version i ri në pritje: beta")).toBeVisible({timeout:34_000});
+  expect(observed.loads).toBe(initialLoads);
+  await expect(frame.getByTestId("mock-version")).toHaveText("Version alpha");
+  await expect(frame.getByPlaceholder("Mock app form input")).toHaveValue("Formular i paperfunduar");
+  await page.getByRole("button",{name:"Apliko versionin e ri"}).click();
+  await expect(frame.getByTestId("mock-version")).toHaveText("Version beta");
+  expect(observed.loads).toBe(initialLoads+1);
+  await expect(page.getByText("Version i ri në pritje: beta")).toHaveCount(0);
+  await page.getByRole("button",{name:"Çaktivizo Session Freeze"}).click();
+  await expect(page.getByRole("button",{name:"Aktivizo Session Freeze"})).toBeVisible();
 });
