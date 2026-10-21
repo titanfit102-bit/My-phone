@@ -279,7 +279,7 @@ export default function App() {
             <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>
             <RoundButton label="↑ Importo backup JSON" onPress={importBackup}/>
           </View>
-          {!!backupMessage&&<Text accessibilityRole="status" style={styles.backupMessage}>{backupMessage}</Text>}
+          {!!backupMessage&&<Text style={styles.backupMessage}>{backupMessage}</Text>}
           {projects.length===0&&!formOpen&&<View style={styles.emptySide}>
             <Text style={styles.emptyGlyph}>◇</Text><Text style={styles.emptyTitle}>Studio është gati.</Text>
             <Text style={styles.emptyDesc}>Shto aplikacionin tënd të parë me lidhjen GitHub dhe URL Web ose Appetize.</Text>
