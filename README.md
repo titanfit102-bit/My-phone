@@ -1,38 +1,47 @@
-# My-phone · Preview Studio
+# My Phone Expo Studio
 
-Repo qendrore për demonstrime të izoluara të aplikacioneve të ndryshme. **Mos vendos kodin e një aplikacioni tjetër këtu.**
+**Një produkt qendror: My Phone Expo Studio.** Ky repository privat ruan vetëm kodin e Studios dhe udhëzimet e integrimit. Nuk është repository për kodin e aplikacioneve që Studio shfaq.
 
-## Komponentët e repository-t
+## Burimi i së vërtetës
 
-- **`studio/` — My Phone Expo Developer Studio v0.4**: React Native + Expo Web me Live Sync për versionet e publikuara, rifreskim rezervë për aplikacionet pa metadata, dhe Android Cloud APK Preview për build-e të regjistruara në Appetize.
-- **`web/`**: shembulli origjinal i vogël i aplikacionit web për prova. Shërbimi ekzistues i Vercel për këtë shembull mbetet i pandryshuar.
+- Kodi kryesor: `studio/` — **Expo + React Native Web**.
+- Repository: `titanfit102-bit/My-phone`, dega `main`.
+- Production: **https://my-phone-studio.vercel.app**; projekti Vercel `my-phone-studio`.
+- Konfigurimi për build: `studio/vercel.json`, komanda `npm run export:web`, output `studio/dist`.
+- Kontrata për manifest të aplikacioneve të jashtme: `docs/LIVE_SYNC_V04.md`.
+- Shembull opsional për ta kopjuar në repository-t e **aplikacioneve të jashtme**: `templates/emit-build-info.mjs`.
 
-`studio/` duhet publikuar në një **projekt të ri** Vercel, me Root Directory `studio` dhe build `npm run export:web`. Aplikacionet e tjera përdorin repository dhe deployment të veçantë.
+**Komponentët legacy janë tërhequr nga produkti:** Chrome Extension u hoq në PR #9; demoja standalone `web/` dhe build-i i saj nuk janë pjesë e Studios. Pas miratimit dhe integrimit të PR-së së pastrimit, këta komponentë nuk janë më pjesë e kodit aktual. Historiku Git ruhet për auditim dhe rikthim.
 
-Dokumentim:
-- [Studio Architecture](docs/STUDIO_ARCHITECTURE.md)
-- [Live Sync v0.4 — kontrata dhe verifikimi](docs/LIVE_SYNC_V04.md)
-- [Expo Studio Readme](studio/README.md)
-- [Lidh një aplikacion të ri me Expo Studio](docs/CONNECT_A_NEW_APP.md)
+## Dy mënyrat e preview
 
-## Testet
+| Mënyra | Si funksionon | Kufiri |
+| --- | --- | --- |
+| **Expo Web Preview** | iFrame me HTTPS URL të versionit web të publikuar të aplikacionit të lidhur; `/build-info.json` kontrollohet çdo 15 sekonda. | Nuk provon statusin privat CI; CSP ose X-Frame-Options mund të bllokojë iframe. |
+| **Android Cloud APK** | Pamje për Appetize Embed URL të një APK-je ekzistuese. | Nuk ndërton apo ngarkon APK vetë; sesioni real i Appetize nuk është pranuar ende me test prove. |
 
-Për demonstrimin origjinal web:
-```bash
-npm test && npm run build
-```
+**Session Freeze** pengon vetëm rifreskimet nga Studio; nuk ngurtëson kodin e aplikacionit të jashtëm. Për `localStorage` ekziston backup manual JSON; nuk ka ende sinkronizim mes pajisjeve.
 
-Për Expo Studio:
+## Punë lokale dhe testet
+
+Përdor Node.js `>=22.13`. Për instalim të përsëritshëm:
+
 ```bash
 cd studio
-npm install
+npm ci
 npm run check:config
 npm run typecheck
 npm run export:web
+npx playwright install chromium
+npm run test:e2e
 ```
 
-Cloud Android është integrim me Appetize: ka nevojë për APK të ndërtuar nga aplikacioni, një llogari Appetize dhe një URL zyrtare Embed. Studio nuk gjeneron vetë APK dhe nuk aktivizon sesione me pagesë. Token-et API nuk ruhen në browser.
+GitHub Action **Verify Expo Studio** është i vetmi workflow i nevojshëm dhe kontrollon policy audit për varësitë, testet unit, TypeScript, eksportin dhe Playwright Chromium desktop/mobile. Fakti që CI është `SUCCESS` nuk është baraz me verifikim manual në Production apo teste me APK reale.
 
-**V0.4 shfaq vetëm versionin e publikuar dhe nuk pretendon të lexojë statusin privat të GitHub Actions pa integrim autentikimi.**
+## Kufijtë dhe autorizimi
 
-**Release gate:** code + GitHub tests `≠` prova reale e publikuar; Expo Web dhe Appetize duhen testuar veçmas në një browser/pajisje reale.
+Çdo aplikacion lidhet nga repository dhe deployment-i i vet, pa kopjuar kodin brenda këtij repository. Mos e prek ILLYRIAN, PRESSA SMART, BUILDER SYSTEM ose aplikacione të tjera pa autorizim përkatës. Mos kryej merge, deploy, krijim kredencialesh, përdorim të Appetize me pagesë apo ndryshim në Production pa miratim të shprehur.
+
+Dokumente: [Architecture](docs/STUDIO_ARCHITECTURE.md), [Live Sync](docs/LIVE_SYNC_V04.md), [How to connect an app](docs/CONNECT_A_NEW_APP.md), [E2E](docs/PLAYWRIGHT_E2E.md), [Iframe and storage](docs/IFRAME_STORAGE_HARDENING.md), [Security triage](docs/SECURITY_ADVISORY_TRIAGE_2026-10-21.md), [Legacy retirement decision](docs/EXPO_ONLY_DECISION_2026-10-21.md).
+
+**Siguria:** `npm audit` kishte 15 High dhe 7 Moderate, me 0 Critical sipas log-ut të fundit të verifikuar. Kjo **nuk është** audit i pastër; përjashtimet e përkohshme të dy advisory-ve skadojnë më 2026-11-21. Mos i deklaro të korrigjuara.

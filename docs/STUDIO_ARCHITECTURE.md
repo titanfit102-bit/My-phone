@@ -4,9 +4,7 @@
 
 The **My-phone** repository hosts the central *viewer/studio only*. Never copy an unrelated application's source into this repository.
 
-Existing, working surfaces remain:
-- `web/`: original standalone proof-of-concept web app and its current Vercel deployment.
-- `studio/`: new Expo + React Native Web application; deploy as a **new** Vercel project with Root Directory `studio`.
+The only maintained application surface is `studio/` — Expo + React Native Web, deployed to the existing Vercel project `my-phone-studio` at https://my-phone-studio.vercel.app. Legacy Chrome Extension was removed in PR #9 and the standalone `web/` proof of concept is retired. The standalone repository-root web demo and its CI are retired as part of a separately reviewed cleanup. Git history is retained.
 
 Each external app retains its own GitHub repository, hosting configuration, backend, tests, access controls, deployments, APK packages, and ownership.
 
@@ -36,8 +34,8 @@ Record: `{id,name,github,web,native}`.
 
 1. Change and test code in that app's own repository.
 2. CI and Vercel build/deploy that app on the configured production branch.
-3. My Phone Studio reloads the deployed stable app URL roughly every 30 seconds while Web Preview is open.
-4. Refresh is not GitHub push notification or verified deployment-status observation. Temporary failed deploys can leave the old version showing.
+3. My Phone Studio polls a public `/build-info.json` every **15 seconds**. A changed revision refreshes the stable Web iframe in automatic mode; in Session Freeze it remains pending until explicitly accepted.
+4. When metadata is missing/CORS-blocked, a **60-second fallback refresh** applies only when not frozen. This is not proof of successful private GitHub CI or Vercel deployment. Temporary failed deploys may leave the old version showing.
 5. If host sends anti-iframe CSP/X-Frame-Options or auth needs third-party cookies, use 'Hap jashtë studios'.
 
 ## Android lifecycle
@@ -56,14 +54,16 @@ Record: `{id,name,github,web,native}`.
 
 From `studio/`:
 ```bash
-npm install
+npm ci
 npm run check:config
 npm run typecheck
 npm run export:web
+npx playwright install chromium
+npm run test:e2e
 ```
 This uses stable Expo SDK 57 with React Native / React Native Web and outputs `studio/dist`.
 
-In Vercel: import GitHub repo `titanfit102-bit/My-phone` as a **NEW** project; set `Root Directory = studio`, Framework = Other, Build = `npm run export:web`, Output = `dist`, Node 22. The existing `my-phone-preview-studio` project is a different deployment; do not redirect/overwrite it until a release gate passes.
+**Existing Production project**: `my-phone-studio` (Vercel), deploying `studio/` with `npm run export:web` and `dist`. Verified production alias: https://my-phone-studio.vercel.app. Current project metadata reports Node 24.x on Vercel; local minimum in `studio/package.json` is Node 22.13+. Do not create or reconnect another Vercel project for this Studio. Verify source SHA and Production deployment ID at every release.
 
 ## Definition of Done
 

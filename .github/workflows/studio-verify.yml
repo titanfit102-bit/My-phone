@@ -5,14 +5,18 @@ on:
     branches: [main, "feat/**"]
     paths:
       - "studio/**"
-      - ".github/workflows/studio-verify.yml"
-      - ".github/workflows/verify.yml"
-      - "tests/**"
+      - "docs/**"
+      - "templates/**"
+      - "README.md"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
     paths:
       - "studio/**"
-      - ".github/workflows/studio-verify.yml"
+      - "docs/**"
+      - "templates/**"
+      - "README.md"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
@@ -38,7 +42,7 @@ jobs:
         run: npm ls --depth=0
       - name: Gate new or critical advisories (reviewed upstream exceptions only)
         run: node scripts/verify-security-audit.mjs
-      - name: Verify registry model
+      - name: Verify Studio and repository isolation
         run: npm run check:config
       - name: Check TypeScript
         run: npm run typecheck
