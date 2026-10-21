@@ -1,0 +1,14 @@
+{
+  "@react-native/js-polyfills@0.86.0": {
+    "file": "react-native-MIT.txt",
+    "license": "MIT",
+    "source": "https://raw.githubusercontent.com/facebook/react-native/a632f9efe24bac8b3a113c78469948f55bde0f5d/LICENSE",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+  },
+  "@react-native/normalize-colors@0.74.89": {
+    "file": "react-native-MIT.txt",
+    "license": "MIT",
+    "source": "https://raw.githubusercontent.com/facebook/react-native/a2066d730d933126bbf7055f4e47c575936e62f3/LICENSE",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+  }
+}
