@@ -6,7 +6,7 @@
   "scripts": {
     "start": "expo start",
     "web": "expo start --web",
-    "export:web": "expo export --platform web && node scripts/emit-build-info.mjs",
+    "export:web": "node scripts/export-web.mjs && node scripts/emit-build-info.mjs",
     "check:config": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test"
