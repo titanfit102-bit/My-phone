@@ -8,7 +8,8 @@
     "web": "expo start --web",
     "export:web": "expo export --platform web && node scripts/emit-build-info.mjs",
     "check:config": "node --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.0",
