@@ -25,9 +25,9 @@ type DeploymentSync = {
 };
 const EMPTY:Draft = {name:"",github:"",web:"",native:""};
 const C = {
-  base:"#080D1A", panel:"#101A2C", elevated:"#17243A", outline:"#26334C",
-  text:"#F3F6FF", muted:"#8B9AB5", accent:"#637DFF", green:"#54DDB4",
-  orange:"#F4B56B", red:"#FB7786", surface:"#0D1526", soft:"#BAC7E0"
+  base:"#0B080E", panel:"#1C1220", elevated:"#261625", outline:"#4B3142",
+  text:"#F9F2F6", muted:"#BAA7B7", accent:"#F44678", green:"#65DEAA",
+  orange:"#F5B978", red:"#FF7D92", surface:"#120D16", soft:"#E0BDCE"
 };
 const isWeb = Platform.OS === "web";
 const link = (value:string) => { if(value) void Linking.openURL(value).catch(() => {}); };
@@ -58,8 +58,8 @@ function Field({title,value,onChange,placeholder,autoCapitalize="none"}:{
   </View>;
 }
 export default function App() {
-  const {width} = useWindowDimensions();
-  const isCompact = width < 940;
+  const {width,height} = useWindowDimensions();
+  const isCompact = width < 1100;
   const [projects,setProjects] = useState<Project[]>([]);
   // Session only: never persisted to localStorage, My Projects or server.
   const [quickPreview,setQuickPreview]=useState<QuickPreview|null>(null);
@@ -260,25 +260,38 @@ export default function App() {
     setSelected(project.id);setFormOpen(false);setPendingRemoval(null);setMode(chooseMode(project,mode) as Mode);
     setRevision(r=>r+1);
   };
-  const previewWidth = currentMode==="web" ? 382 : 434;
+  // Fit the full 430:932 phone into the viewport, independent of sidebar scrolling.
+  const previewWidth = Math.max(260,Math.min(400,Math.floor((height-48)*430/932)));
+  const previewHeight = Math.round(previewWidth*932/430);
   const syncSummary = summarizeSync(syncState);
   const readableTime = (time:number|null) => time ? new Date(time).toLocaleTimeString("sq-AL") : "—";
   return (
-    <View style={styles.app}>
-      <View style={styles.topbar}>
-        <View style={styles.brand}><View style={styles.logo}><Text style={styles.logoLetter}>M</Text></View>
-          <View><Text style={styles.brandTitle}>MY PHONE <Text style={{color:C.accent}}>STUDIO</Text></Text>
-            <Text style={styles.brandSubtitle}>EXPO · WEB + ANDROID CLOUD</Text></View>
-        </View>
-        <View style={styles.topright}><Badge good>STUDIO v0.4</Badge><Text style={styles.topHint}>GitHub → Build → Preview</Text></View>
-      </View>
+    <View style={[styles.app,!isCompact&&{height},isWeb&&({backgroundImage:"radial-gradient(ellipse at 70% 45%, #3b1027 0%, #190b18 43%, #09080d 84%)"} as any)]}>
       <View style={[styles.main,isCompact&&styles.mainMobile]}>
         <ScrollView contentContainerStyle={styles.sidebarContent}
           style={[styles.sidebar,isCompact&&styles.sidebarMobile]} showsVerticalScrollIndicator={false}>
           <View style={styles.sidebarHeading}><View><Text style={styles.overline}>WORKSPACE</Text>
             <Text style={styles.sidebarTitle}>Aplikacionet <Text style={{color:C.muted}}>({projects.length})</Text></Text></View>
             <RoundButton label="+ Shto" primary onPress={addNew}/></View>
+          <View style={styles.brandInSidebar}>
+            <View style={styles.brand}><View style={styles.logo}><Text style={styles.logoLetter}>M</Text></View>
+              <View><Text style={styles.brandTitle}>MY PHONE <Text style={{color:C.accent}}>EXPO STUDIO</Text></Text>
+                <Text style={styles.brandSubtitle}>APPLICATION PREVIEW WORKSPACE</Text></View>
+            </View>
+            <Badge good>STUDIO v0.4</Badge>
+          </View>
           <Text style={styles.sidebarIntro}>Lidh repository-t e aplikacioneve pa përzier kodin e tyre me këtë studio.</Text>
+          <View style={styles.leftModeControls}>
+            <Text style={styles.overline}>02 / ZGJIDH PREVIEW</Text>
+          <View style={styles.modeSwitcher}>
+            <Pressable accessibilityRole="button" onPress={()=>{setMode("web");setRevision(r=>r+1);}}
+              style={[styles.modeButton,currentMode==="web"&&styles.modeButtonActive]}>
+              <Text style={[styles.modeLabel,currentMode==="web"&&styles.modeLabelActive]}>◈ Expo Web Preview</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={()=>{setQuickPreview(null);setMode("native");setRevision(r=>r+1);}}
+              style={[styles.modeButton,currentMode==="native"&&styles.modeButtonActive]}>
+              <Text style={[styles.modeLabel,currentMode==="native"&&styles.modeLabelActive]}>▣ Android Cloud APK</Text></Pressable>
+          </View>
+          </View>
           <ZipImportPanel onPreview={value=>{setQuickPreview(value);if(value)setMode("web");}}/>
           {!!registryWarning&&<Text accessibilityRole="alert" style={styles.registryWarning}>{registryWarning}</Text>}
           <View style={styles.backupActions}>
@@ -336,21 +349,37 @@ export default function App() {
           </View>}
           <View style={styles.sideFooter}><Text style={styles.sideFooterText}>Çdo aplikacion ka repository-n dhe procesin e publikimit të vet. Studio nuk kopjon ose modifikon kodin e tyre.</Text></View>
         </ScrollView>
-        <ScrollView contentContainerStyle={styles.stageScrollContent} style={styles.stage} showsVerticalScrollIndicator>
+        <View style={[styles.stage,isCompact&&styles.stageMobile]}>
+          <View style={styles.phoneColumn}>
+            <View style={styles.deviceArea}>
+            <View style={[styles.device, {width:previewWidth,height:previewHeight},
+              currentMode==="native"&&styles.nativeDevice]}>
+              <View style={styles.deviceTop}><Text style={styles.deviceClock}>9:41</Text>
+                <View style={styles.deviceNotch}/><Text style={styles.deviceSignal}>◉ ▮▮</Text></View>
+              <View style={styles.deviceScreen}>
+                {quickPreview ? <iframe key={"zip-"+quickPreview.serial} title="Quick Preview · ZIP"
+                  srcDoc={quickPreview.srcDoc} sandbox="allow-scripts" referrerPolicy="no-referrer"
+                  style={{width:"100%",height:"100%",border:0,backgroundColor:"#FFF"}}/>
+                  :current&&previewUrl?<PreviewHost url={previewUrl} title={current.name} variant={currentMode} revision={revision}/>
+                  :<View style={styles.blankScreen}>
+                    <View style={styles.blankIcon}><Text style={{color:C.accent,fontSize:44}}>◇</Text></View>
+                    <Text style={styles.blankTitle}>{current?"S'ka lidhje për këtë modalitet":"Hap një aplikacion"}</Text>
+                    <Text style={styles.blankDesc}>{current?"Ndrysho projektin dhe shto URL për këtë modalitet.":"Shto një repository dhe adresën e Web Preview ose Appetize."}</Text>
+                    {!current&&<RoundButton primary label="+ Shto aplikacionin" onPress={addNew}/>}
+                  </View>}
+              </View>
+              <View style={styles.deviceBottom}><View style={styles.deviceHome}/></View>
+            </View>
+            </View>
+          </View>
+          <ScrollView style={[styles.workspaceTools,isCompact&&styles.workspaceToolsMobile]}
+            contentContainerStyle={styles.workspaceToolsContent} showsVerticalScrollIndicator>
           <View style={[styles.stageHeading,isCompact&&styles.stageHeadingMobile]}>
             <View><Text style={styles.overline}>DEVICE LAB / LIVE PREVIEW</Text>
               <Text style={styles.stageTitle}>{quickPreview?"Quick Preview · "+quickPreview.filename:current?current.name:"Telefoni yt virtual"}</Text>
               <Text style={styles.stageSubtitle}>Një pamje për Web dhe një emulator real Android në cloud.</Text></View>
             <View style={styles.stageActions}><Badge good={!!quickPreview||!!current}>{quickPreview?"ZIP TEMPORARY":current?"PROJEKT AKTIV":"NË PRITJE"}</Badge>
               <RoundButton label="↻ Rifresko" onPress={()=>quickPreview?setQuickPreview(value=>value?{...value,serial:value.serial+1}:null):manualRefresh()}/></View>
-          </View>
-          <View style={styles.modeSwitcher}>
-            <Pressable accessibilityRole="button" onPress={()=>{setMode("web");setRevision(r=>r+1);}}
-              style={[styles.modeButton,currentMode==="web"&&styles.modeButtonActive]}>
-              <Text style={[styles.modeLabel,currentMode==="web"&&styles.modeLabelActive]}>◈ Expo Web Preview</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={()=>{setQuickPreview(null);setMode("native");setRevision(r=>r+1);}}
-              style={[styles.modeButton,currentMode==="native"&&styles.modeButtonActive]}>
-              <Text style={[styles.modeLabel,currentMode==="native"&&styles.modeLabelActive]}>▣ Android Cloud APK</Text></Pressable>
           </View>
           <View style={styles.stageNote}><Text style={styles.stageNoteText}>
             {quickPreview ? "Quick Preview i izoluar, offline. Asnjë ZIP nuk ruhet; backend/API dhe disa media mund të mungojnë."
@@ -401,25 +430,6 @@ export default function App() {
               <RoundButton label="↗ Web deployment" onPress={()=>link(current.web)}/>
             </View>
           </View>}
-          <View style={styles.deviceArea}>
-            <View style={[styles.device, {width:isCompact?"100%":previewWidth},
-              currentMode==="native"&&styles.nativeDevice]}>
-              <View style={styles.deviceTop}><Text style={styles.deviceClock}>9:41</Text>
-                <View style={styles.deviceNotch}/><Text style={styles.deviceSignal}>◉ ▮▮</Text></View>
-              <View style={styles.deviceScreen}>
-                {quickPreview ? <iframe key={"zip-"+quickPreview.serial} title="Quick Preview · ZIP"
-                  srcDoc={quickPreview.srcDoc} sandbox="allow-scripts" referrerPolicy="no-referrer"
-                  style={{width:"100%",height:"100%",border:0,backgroundColor:"#FFF"}}/>
-                  :current&&previewUrl?<PreviewHost url={previewUrl} title={current.name} variant={currentMode} revision={revision}/>
-                  :<View style={styles.blankScreen}>
-                    <View style={styles.blankIcon}><Text style={{color:C.accent,fontSize:44}}>◇</Text></View>
-                    <Text style={styles.blankTitle}>{current?"S'ka lidhje për këtë modalitet":"Hap një aplikacion"}</Text>
-                    <Text style={styles.blankDesc}>{current?"Ndrysho projektin dhe shto URL për këtë modalitet.":"Shto një repository dhe adresën e Web Preview ose Appetize."}</Text>
-                    {!current&&<RoundButton primary label="+ Shto aplikacionin" onPress={addNew}/>}
-                  </View>}
-              </View>
-              <View style={styles.deviceBottom}><View style={styles.deviceHome}/></View>
-            </View>
             <View style={styles.previewTools}><View style={styles.statusRow}>
               <View style={styles.greenDot}/><Text style={styles.statusText}>{quickPreview?"Quick Preview · sesion privat, pa ruajtje":current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
               {!quickPreview&&current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
@@ -429,15 +439,14 @@ export default function App() {
               {!quickPreview&&currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
               {lastUpdate&&<Text style={styles.infoSmall}>Rifreskimi i fundit: {lastUpdate}</Text>}
             </View>
-          </View>
           <View style={styles.disclaimer}><Text style={styles.disclaimerText}>
             {quickPreview?quickPreview.warning:currentMode==="native"?
             "Native Preview është emulator real vetëm kur ke lidhur një Appetize build të vlefshëm. Versionet e reja APK kërkojnë build/upload të ri dhe përditësim të lidhjes.":
             "Pamja Expo Web nuk është emulator Android. Aplikacioni duhet të jetë i publikuar dhe të lejojë iframe; nëse bllokohet, hape jashtë studios."}
           </Text></View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </View>
-      <View style={styles.footer}><Text style={styles.footerText}>MY PHONE DEVELOPER STUDIO · EXPO + REACT NATIVE WEB</Text><Text style={styles.footerText}>Projektet ruhen lokalisht në këtë shfletues</Text></View>
     </View>
   );
 }
@@ -446,34 +455,34 @@ const styles=StyleSheet.create({
   topbar:{height:76,borderBottomWidth:1,borderBottomColor:C.outline,paddingHorizontal:24,
     backgroundColor:C.surface,alignItems:"center",justifyContent:"space-between",flexDirection:"row"},
   brand:{flexDirection:"row",alignItems:"center",gap:13},
-  logo:{width:43,height:43,borderRadius:13,backgroundColor:"#283D80",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:"#4960AC"},
+  logo:{width:43,height:43,borderRadius:13,backgroundColor:"#D63370",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:"#FF8AAC"},
   logoLetter:{color:"#FFFFFF",fontWeight:"900",fontSize:23,letterSpacing:-2},
   brandTitle:{fontWeight:"900",fontSize:15,color:C.text,letterSpacing:1.4},
   brandSubtitle:{fontSize:9,letterSpacing:1.4,color:C.muted,fontWeight:"700",marginTop:5},
   topright:{flexDirection:"row",gap:16,alignItems:"center"},
   topHint:{color:C.muted,fontSize:11},
-  badge:{borderRadius:6,paddingHorizontal:8,paddingVertical:5,borderWidth:1,borderColor:"#3B4864",backgroundColor:"#222D44"},
+  badge:{borderRadius:7,paddingHorizontal:8,paddingVertical:5,borderWidth:1,borderColor:"#674258",backgroundColor:"#321E2E"},
   badgeGreen:{borderColor:"#295C53",backgroundColor:"#153C37"},
   badgeText:{fontSize:9,color:"#BEC9E3",fontWeight:"800",letterSpacing:.5},
   badgeTextGreen:{color:"#85E9CB"},
-  main:{flex:1,flexDirection:"row"},
-  mainMobile:{flexDirection:"column"},
-  sidebar:{flexGrow:0,flexShrink:0,width:340,borderRightWidth:1,borderRightColor:C.outline,backgroundColor:"#0C1424"},
-  sidebarMobile:{width:"100%",flexGrow:0,maxHeight:520,borderBottomWidth:1,borderBottomColor:C.outline,borderRightWidth:0},
-  sidebarContent:{padding:20,paddingBottom:32},
+  main:{flex:1,flexDirection:"row",gap:16,padding:16,minHeight:0},
+  mainMobile:{flexDirection:"column",padding:12},
+  sidebar:{flexGrow:0,flexShrink:0,width:355,borderWidth:1,borderColor:C.outline,borderRadius:18,backgroundColor:"#130E17"},
+  sidebarMobile:{width:"100%",flexGrow:0,maxHeight:560},
+  sidebarContent:{padding:19,paddingBottom:32},
   sidebarHeading:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
-  overline:{fontSize:10,fontWeight:"800",letterSpacing:1.5,color:"#8A9BC2"},
+  overline:{fontSize:10,fontWeight:"800",letterSpacing:1.5,color:"#E8AEC3"},
   sidebarTitle:{fontWeight:"800",fontSize:20,color:C.text,marginTop:8},
   sidebarIntro:{fontSize:12,color:C.muted,lineHeight:19,marginTop:13,marginBottom:19},
-  roundButton:{backgroundColor:"#1A2A43",paddingVertical:9,paddingHorizontal:11,borderRadius:9,borderWidth:1,borderColor:"#314362",alignItems:"center",justifyContent:"center"},
-  primaryButton:{backgroundColor:C.accent,borderColor:"#758AFF"},
+  roundButton:{backgroundColor:"#281927",paddingVertical:9,paddingHorizontal:11,borderRadius:9,borderWidth:1,borderColor:C.outline,alignItems:"center",justifyContent:"center"},
+  primaryButton:{backgroundColor:C.accent,borderColor:"#FF8EB0"},
   dangerButton:{backgroundColor:"#3D222F",borderColor:"#754251"},
   pressed:{opacity:.73},
   buttonText:{color:"#D2DCF5",fontWeight:"800",fontSize:11},
   primaryText:{color:"#FFFFFF"},
   dangerText:{color:"#FF9BA9"},
   projectCard:{padding:13,borderRadius:14,borderWidth:1,borderColor:C.outline,marginBottom:10,backgroundColor:C.panel},
-  projectCardActive:{borderColor:C.accent,backgroundColor:"#19294B"},
+  projectCardActive:{borderColor:C.accent,backgroundColor:"#381A2D"},
   projectRow:{flexDirection:"row",gap:11,alignItems:"center"},
   projectIcon:{width:34,height:34,borderRadius:9,backgroundColor:"#20304D",justifyContent:"center",alignItems:"center"},
   projectIconActive:{backgroundColor:C.accent},
@@ -488,8 +497,8 @@ const styles=StyleSheet.create({
   formPanel:{borderWidth:1,borderColor:C.outline,borderRadius:15,backgroundColor:C.panel,padding:16,marginTop:5},
   formHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:16},
   formTitle:{color:C.text,fontSize:16,fontWeight:"900"},
-  label:{fontSize:10,fontWeight:"800",color:"#A6B6D6",letterSpacing:.9,marginBottom:7},
-  input:{borderWidth:1,borderColor:"#3A4D70",backgroundColor:"#0D1526",borderRadius:10,
+  label:{fontSize:10,fontWeight:"800",color:"#E7BFCE",letterSpacing:.9,marginBottom:7},
+  input:{borderWidth:1,borderColor:C.outline,backgroundColor:"#0F0B12",borderRadius:10,
     paddingHorizontal:11,paddingVertical:12,fontSize:12,color:"#FFFFFF"},
   fieldHint:{color:C.muted,fontSize:11,lineHeight:18,marginTop:8,marginBottom:8},
   errorText:{color:C.red,fontSize:11,marginVertical:9},
@@ -498,25 +507,26 @@ const styles=StyleSheet.create({
   linkRow:{flexDirection:"row",gap:8,marginBottom:8,flexWrap:"wrap"},
   sideFooter:{marginTop:30,paddingTop:16,borderTopWidth:1,borderTopColor:C.outline},
   sideFooterText:{color:"#7587A6",fontSize:11,lineHeight:19},
-  stage:{flex:1,backgroundColor:C.base},
+  stage:{flex:1,flexDirection:"row",gap:16,minWidth:0,minHeight:0,backgroundColor:"transparent"},
+  stageMobile:{flexDirection:"column",minHeight:650},
   stageScrollContent:{padding:30,paddingBottom:45,alignItems:"stretch"},
   stageHeading:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:14},
   stageHeadingMobile:{flexDirection:"column",alignItems:"flex-start"},
-  stageTitle:{fontWeight:"900",fontSize:30,letterSpacing:-1,color:C.text,marginTop:6},
+  stageTitle:{fontWeight:"900",fontSize:20,letterSpacing:-.5,color:C.text,marginTop:6},
   stageSubtitle:{fontSize:12,color:C.muted,marginTop:8},
   stageActions:{flexDirection:"row",gap:9,alignItems:"center"},
-  modeSwitcher:{marginTop:23,flexDirection:"row",padding:5,borderWidth:1,borderColor:C.outline,
-    backgroundColor:"#121D30",borderRadius:12,alignSelf:"flex-start",flexWrap:"wrap"},
+  modeSwitcher:{marginTop:10,flexDirection:"row",padding:5,borderWidth:1,borderColor:C.outline,
+    backgroundColor:"#120C17",borderRadius:12,alignSelf:"stretch",flexWrap:"wrap"},
   modeButton:{paddingHorizontal:16,paddingVertical:11,borderRadius:9},
-  modeButtonActive:{backgroundColor:"#30467A"},
+  modeButtonActive:{backgroundColor:"#802B51"},
   modeLabel:{color:C.muted,fontSize:12,fontWeight:"800"},
   modeLabelActive:{color:"#FFFFFF"},
   stageNote:{marginTop:16,padding:12,backgroundColor:"#151F36",borderRadius:11,borderLeftWidth:2,borderLeftColor:C.accent},
   stageNoteText:{color:"#A9B9DA",fontSize:11,lineHeight:18},
-  deviceArea:{alignItems:"center",paddingTop:24,gap:16},
-  device:{height:720,maxWidth:420,borderRadius:45,borderWidth:7,borderColor:"#303B57",
-    backgroundColor:"#060B16",overflow:"hidden",shadowColor:"#000",shadowRadius:38,shadowOpacity:.4,shadowOffset:{width:0,height:19},elevation:12},
-  nativeDevice:{maxWidth:455},
+  deviceArea:{flex:1,alignItems:"center",justifyContent:"center",paddingTop:0,minWidth:0},
+  device:{borderRadius:45,borderWidth:6,borderColor:"#513444",
+    backgroundColor:"#0C0810",overflow:"hidden",shadowColor:"#000",shadowRadius:38,shadowOpacity:.4,shadowOffset:{width:0,height:19},elevation:12},
+  nativeDevice:{borderColor:"#6A3E5A"},
   deviceTop:{height:34,flexDirection:"row",justifyContent:"space-between",paddingHorizontal:20,alignItems:"center",position:"relative"},
   deviceClock:{color:"#FFFFFF",fontWeight:"800",fontSize:11},
   deviceNotch:{width:102,height:21,borderRadius:16,backgroundColor:"#02040B",position:"absolute",top:0,left:"50%",marginLeft:-51},
@@ -524,7 +534,7 @@ const styles=StyleSheet.create({
   deviceScreen:{flex:1,backgroundColor:"#FFFFFF",overflow:"hidden"},
   deviceBottom:{height:24,alignItems:"center",justifyContent:"center"},
   deviceHome:{width:100,height:4,borderRadius:3,backgroundColor:"#E9EBF3"},
-  blankScreen:{flex:1,padding:24,backgroundColor:"#111C33",alignItems:"center",justifyContent:"center",gap:14},
+  blankScreen:{flex:1,padding:24,backgroundColor:"#1B1221",alignItems:"center",justifyContent:"center",gap:14},
   blankIcon:{width:90,height:90,borderRadius:27,alignItems:"center",justifyContent:"center",backgroundColor:"#243960"},
   blankTitle:{color:"#FFFFFF",fontSize:20,fontWeight:"900",textAlign:"center"},
   blankDesc:{color:"#AAB8D4",fontSize:12,lineHeight:19,textAlign:"center"},
@@ -536,7 +546,7 @@ const styles=StyleSheet.create({
   backupActions:{flexDirection:"row",flexWrap:"wrap",gap:6,marginBottom:11},
   backupMessage:{color:C.soft,fontSize:11,marginBottom:10,lineHeight:18},
   registryWarning:{backgroundColor:"#402B2D",borderColor:C.red,borderWidth:1,borderRadius:9,padding:10,color:"#FFD6D9",fontSize:11,lineHeight:18,marginBottom:12},
-  monitorPanel:{marginTop:18,padding:18,borderRadius:14,borderWidth:1,borderColor:C.outline,backgroundColor:C.panel},
+  monitorPanel:{marginTop:18,padding:14,borderRadius:14,borderWidth:1,borderColor:C.outline,backgroundColor:"#241624"},
   monitorHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8},
   monitorTitle:{fontSize:17,fontWeight:"900",color:C.text,marginTop:7},
   monitorDescription:{fontSize:11,color:C.soft,marginTop:12,lineHeight:18},
@@ -547,7 +557,7 @@ const styles=StyleSheet.create({
   pendingText:{color:"#DBCEDE",fontSize:11,lineHeight:18,marginTop:7},
   pendingAction:{marginTop:11,alignSelf:"flex-start"},
   monitorMetrics:{marginTop:15,flexDirection:"row",flexWrap:"wrap",gap:9},
-  monitorMetric:{flexGrow:1,flexBasis:150,backgroundColor:"#0B1527",borderWidth:1,borderColor:C.outline,padding:12,borderRadius:10},
+  monitorMetric:{flexGrow:1,flexBasis:130,backgroundColor:"#140E18",borderWidth:1,borderColor:C.outline,padding:12,borderRadius:10},
   metricLabel:{fontSize:9,color:C.muted,fontWeight:"800",letterSpacing:.5},
   metricValue:{fontSize:13,color:C.text,fontWeight:"800",marginTop:7},
   monitorWarning:{color:"#E3C7A7",fontSize:10,lineHeight:16,marginTop:13},
@@ -556,5 +566,11 @@ const styles=StyleSheet.create({
   disclaimerText:{color:"#8090AF",fontSize:11,lineHeight:19,textAlign:"center"},
   footer:{paddingHorizontal:24,paddingVertical:14,borderTopWidth:1,borderTopColor:C.outline,
     flexDirection:"row",flexWrap:"wrap",justifyContent:"space-between",gap:12},
-  footerText:{color:"#6C7A98",fontSize:9,fontWeight:"800",letterSpacing:.8}
+  footerText:{color:"#6C7A98",fontSize:9,fontWeight:"800",letterSpacing:.8},
+  brandInSidebar:{gap:12,borderBottomWidth:1,borderBottomColor:C.outline,paddingBottom:15,marginBottom:20},
+  leftModeControls:{marginBottom:15},
+  phoneColumn:{flex:1,minWidth:0,minHeight:0,alignItems:"center",justifyContent:"center"},
+  workspaceTools:{width:310,flexGrow:0,flexShrink:0,backgroundColor:"#150E19",borderWidth:1,borderColor:C.outline,borderRadius:18},
+  workspaceToolsMobile:{width:"100%",maxHeight:540},
+  workspaceToolsContent:{padding:17,paddingBottom:28},
 });
