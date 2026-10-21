@@ -12,6 +12,12 @@ A source-isolated, multi-project virtual device lab. **This is the STUDIO, not t
 - The list is stored in this browser's localStorage, not synchronized across devices. Storage failures are visible and validated JSON export/import is available for manual backup/recovery.
 - No API keys in the client; no paid cloud sessions start automatically.
 
+## Quick Preview (built ZIP, session-only)
+
+In Expo Web, **↑ Ngarko ZIP** can render a narrowly supported prebuilt Web `dist/index.html` bundle directly in the phone frame using an **opaque-origin iframe sandbox with scripts only**. CSS and JS are inflated in the browser from uploaded ZIP bytes; nothing is uploaded, persisted, installed or deployed. Any app data written to localStorage is intercepted by a small **ephemeral in-frame memory-only shim**, separate from Studio storage. Click **✕ Mbyll Quick Preview** to discard the view; reloading the Studio also clears it.
+
+Limitations: one JS bundle, at most one CSS asset, no backend, network requests or external resources, no multiple JS chunks, no arbitrary source compilation, no Android APK. Some apps will be partially functional or incompatible; the feature is best-effort. The source ZIP inspector rejects invalid archives and per-asset decompression is additionally bounded. Do not set `allow-same-origin` on the ZIP iframe. Refer to [Quick Preview limits](../docs/QUICK_PREVIEW_ZIP.md).
+
 ## ZIP Import — first phase
 
 The **↑ Ngarko ZIP** action in the Expo Web sidebar inspects a local GitHub Download ZIP file (32 MB cap) and reports indicative framework type and whether the archive contains source or a static build candidate. It reads only ZIP directory metadata and never decompresses, executes or uploads archive contents. **It does not yet build, deploy or display an app from the ZIP.** Deliberately treat all uploaded files as untrusted; do not bypass the parser to serve an HTML archive from the Studio origin. Native Expo interface reports that ZIP inspection is Web-only for this stage.
