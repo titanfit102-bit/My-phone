@@ -270,9 +270,6 @@ export default function App() {
       <View style={[styles.main,isCompact&&styles.mainMobile]}>
         <ScrollView contentContainerStyle={styles.sidebarContent}
           style={[styles.sidebar,isCompact&&styles.sidebarMobile]} showsVerticalScrollIndicator={false}>
-          <View style={styles.sidebarHeading}><View><Text style={styles.overline}>WORKSPACE</Text>
-            <Text style={styles.sidebarTitle}>Aplikacionet <Text style={{color:C.muted}}>({projects.length})</Text></Text></View>
-            <RoundButton label="+ Shto" primary onPress={addNew}/></View>
           <View style={styles.brandInSidebar}>
             <View style={styles.brand}><View style={styles.logo}><Text style={styles.logoLetter}>M</Text></View>
               <View><Text style={styles.brandTitle}>MY PHONE <Text style={{color:C.accent}}>EXPO STUDIO</Text></Text>
@@ -280,6 +277,9 @@ export default function App() {
             </View>
             <Badge good>STUDIO v0.4</Badge>
           </View>
+          <View style={styles.sidebarHeading}><View><Text style={styles.overline}>01 / PROJEKTI AKTIV</Text>
+            <Text style={styles.sidebarTitle}>Aplikacionet <Text style={{color:C.muted}}>({projects.length})</Text></Text></View>
+            <RoundButton label="+ Shto" primary onPress={addNew}/></View>
           <Text style={styles.sidebarIntro}>Lidh repository-t e aplikacioneve pa përzier kodin e tyre me këtë studio.</Text>
           <View style={styles.leftModeControls}>
             <Text style={styles.overline}>02 / ZGJIDH PREVIEW</Text>
