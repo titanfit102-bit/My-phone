@@ -10,7 +10,7 @@ Baseline: `ba2a5c02afd12b5be862832022f5a5529dfdd3ea`, PR #15 targets `feat/my-ph
 - [x] Verify selected ZIP entry integrity (CRC32, local/central metadata and central-directory boundary), with corrupt stored/deflated fixtures and valid data-descriptor compatibility tests.
 - [x] Extend browser verification with real font/image decoding and opaque-origin/CSP/lifecycle checks. Focused desktop/mobile browser tests 4/4 PASS; complete final suite recorded in WORK -> HIGH report.
 - [x] Final local unit 71/71, TypeScript, Expo export and audit gate pass; desktop/mobile Playwright 35 PASS, 1 intentional mobile skip, 0 FAIL/flaky. Independent review completed. Publish only source/docs via GitHub API with parent/history preserved.
-- [ ] Verify Vercel Preview SHA and runtime; record GitHub CI blockage and remaining release gates in WORK -> HIGH report.
+- [x] Verify initial Vercel metadata SHA and record final deployment blockers: new code commit is rate-limited for 24 hours, old Preview is initial SHA only, runtime requires Vercel authentication/team access. GitHub CI remains blocked before steps. These gates are BLOCKED, not claimed passing.
 
 Constraints: My-phone only; no main merge, Production deployment, billing changes, new cloud services or project dependencies. Test-only browser tooling may run outside the repository. Never fabricate CI success. No need to retry Actions while account evidence proves the block persists.
 

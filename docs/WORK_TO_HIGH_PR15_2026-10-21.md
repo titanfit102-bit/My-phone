@@ -2,6 +2,8 @@
 
 Data: 21 tetor 2026. Mënyra: AUTO, ekzekutim lokal i izoluar + GitHub API + kontroll i pavarur i kodit. Pa shpenzime, merge ose publikim në Production.
 
+**Commit i implementimit:** `ba8362e8305c7d6f1598554d370666ae6ba98acb`. Dokumentimi i bllokimeve pas push-it është një commit pasues vetëm për dokumentacion; hash-et e burimit të testuar mbeten identike.
+
 ## Detyra dhe gjendja fillestare e verifikuar
 
 - Repository privat: `titanfit102-bit/My-phone`.
@@ -24,6 +26,14 @@ Verifikimi i llogarisë e konkretizoi shkakun:
 - `.github/workflows/studio-verify.yml` është workflow i njohur nga GitHub dhe përmban Node 22, `npm ci`, audit gate, testet Node, TypeScript, export dhe Playwright. Njoftimi për migrimin Ubuntu 26 është NOTICE, jo shkaku i dështimit.
 
 Nuk u ndryshuan workflow, billing, spending limits, leje ose runner-a. Korrigjimi i kodit nuk mund të krijojë minuta të reja falas. Nuk u bënë rerun-e të përsëritura ndaj të njëjtit bllokim. Nuk ka prova nga ky kontroll për një pagesë konkrete të dështuar; faktet e mjaftueshme janë kuota e shteruar dhe buxheti $0.
+
+Pas push-it, [run 39659505506](https://github.com/titanfit102-bit/My-phone/actions/runs/39659505506) për commit-in e implementimit përfundoi sërish FAILURE pa hapa dhe pa log job-i. Nuk është dështim i testeve të aplikacionit.
+
+## Bllokimi i ri i Vercel pas push-it
+
+Statusi GitHub `Vercel` për commit-in `ba8362e8305c7d6f1598554d370666ae6ba98acb` është **FAILURE**, me përshkrimin **“Deployment rate limited — retry in 24 hours.”** Nuk u krijua një Preview i ri i verifikuar për korrigjimet; lidhja e vjetër READY i përket vetëm commit-it fillestar `ba2a5c0`.
+
+Nuk u aktivizua Pro dhe nuk u ndryshua plan financiar. Hapi pa pagesë është të provohet deployment-i pas afatit të treguar nga Vercel. Listimi i deployment-eve për team-in `un24` ktheu 403: lidhja ekzistuese nuk e autorizon atë scope. Nevojitet autorizimi i team-it për connector-in, jo çaktivizimi i Deployment Protection.
 
 ## Ndryshimet e realizuara
 
@@ -74,5 +84,7 @@ Regresionet e amplifikimit, CRC/header dhe escapimit u panë të dështonin para
 **Gati për review teknik të kodit; jo gati për merge/Production.** Mbaje PR #15 Draft derisa të verifikohet CI në commit-in final, Preview runtime dhe ZIP përfaqësues. Rishiko advisories para release. Prindërit e stacked PR duhen trajtuar sipas rendit të projektit; ky ekzekutim nuk i ndryshon.
 
 Hapi falas: vazhdo testimin lokal dhe rinis CI pas reset-it të kuotës. Nëse kërkohet CI GitHub menjëherë, nevojitet vendim i veçantë për buxhet shtesë ose një runner të autorizuar; këto nuk u aktivizuan. Për runtime Preview nevojitet qasje ekzistuese Vercel që autorizon projektin/team-in ose hyrje e përdoruesit. Mos rrit lejet ose buxhetin automatikisht.
+
+Për deployment-in e ri pritet gjithashtu kalimi i rate limit-it 24-orësh të Vercel. Mos përdor lidhjen e vjetër si provë që korrigjimet e reja janë publikuar.
 
 Branch-i dhe commit-i përfundimtar janë në PR #15; burimi i testuar identifikohet edhe nga hash-et Git të evidencës. Nuk u krye merge dhe nuk u publikua në Production.

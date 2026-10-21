@@ -266,7 +266,9 @@
     "usedMinutes": 2000,
     "includedMinutes": 2000,
     "actionsExtraBudgetUSD": 0,
-    "billingChanged": false
+    "billingChanged": false,
+    "implementationRun": 39659505506,
+    "implementationRunConclusion": "failure with no steps or job log"
   },
   "sourceGitBlobs": {
     ".github/workflows/studio-verify.yml": "6fbd8986cfd2fdbe413fd808c282a729d814e19e",
@@ -305,5 +307,16 @@
     "studio/tests/zip-inspector.test.mjs": "e7d14140811a4fce0d1c1b2f8f7e13fd864ca73c",
     "studio/tsconfig.json": "47274101d6bb5787a6f5046b81e98de91602b752",
     "studio/vercel.json": "6fdad479260b1a5584bd2d057b693b7b293ffadf"
+  },
+  "implementationCommit": "ba8362e8305c7d6f1598554d370666ae6ba98acb",
+  "vercel": {
+    "implementationCommitStatus": "failure",
+    "description": "Deployment rate limited \u2014 retry in 24 hours.",
+    "initialPreview": "https://my-phone-studio-rkgqk1xu0-un24.vercel.app",
+    "initialPreviewState": "READY",
+    "initialPreviewSHA": "ba2a5c02afd12b5be862832022f5a5529dfdd3ea",
+    "finalPreviewVerified": false,
+    "runtimeAccess": "Vercel Authentication; connector 403 for team un24",
+    "billingChanged": false
   }
 }
