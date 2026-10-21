@@ -51,13 +51,13 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
   </View>;
 }
 const styles=StyleSheet.create({
-  panel:{borderWidth:1,borderColor:"#33435F",backgroundColor:"#111D32",borderRadius:12,padding:12,marginBottom:15},
-  title:{color:"#E9F0FF",fontWeight:"800",fontSize:11,letterSpacing:1},
-  description:{color:"#9AAAC8",fontSize:11,lineHeight:17,marginTop:8,marginBottom:10},
-  button:{backgroundColor:"#334EBC",borderRadius:8,padding:10,alignItems:"center"},
+  panel:{borderWidth:1,borderColor:"#553645",backgroundColor:"#24151E",borderRadius:14,padding:14,marginBottom:15},
+  title:{color:"#FFB4C8",fontWeight:"800",fontSize:11,letterSpacing:1.2},
+  description:{color:"#C5A9B8",fontSize:11,lineHeight:17,marginTop:8,marginBottom:12},
+  button:{backgroundColor:"#F44678",borderRadius:10,padding:11,alignItems:"center"},
   buttonText:{fontSize:12,fontWeight:"800",color:"#FFFFFF"},
-  close:{marginTop:9,borderWidth:1,borderColor:"#80565C",borderRadius:8,padding:9,alignItems:"center"},
-  closeText:{color:"#FFD2D5",fontSize:11,fontWeight:"700"},
-  status:{color:"#D8E5FF",fontSize:11,lineHeight:17,marginTop:9},
-  note:{fontSize:10,color:"#A9BAD5",lineHeight:16,marginTop:9}
+  close:{marginTop:9,borderWidth:1,borderColor:"#805060",borderRadius:10,padding:10,alignItems:"center"},
+  closeText:{color:"#FFD2DD",fontSize:11,fontWeight:"700"},
+  status:{color:"#F5D9E5",fontSize:11,lineHeight:17,marginTop:9},
+  note:{fontSize:10,color:"#C2A4B3",lineHeight:16,marginTop:9}
 });
