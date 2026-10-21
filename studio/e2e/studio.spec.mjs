@@ -316,3 +316,42 @@ test("ZIP with only source gives actionable message and never opens a phone ifra
   await expect(page.getByText(/Nuk gjendet dist\/index.html/)).toBeVisible();
   await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
 });
+
+
+test("premium desktop phone remains fully visible while both side panels scroll", async ({page}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Fixed three-column workspace applies on desktop.");
+  for (const viewport of [{width:1100,height:900},{width:1366,height:760},{width:1600,height:950}]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    const phone=page.getByTestId("studio-phone-frame");
+    const left=page.getByTestId("studio-projects-panel");
+    const right=page.getByTestId("studio-diagnostics-panel");
+    await expect(phone).toBeVisible();
+    await expect(left).toBeVisible();
+    await expect(right).toBeVisible();
+    const before=await phone.boundingBox();
+    expect(before).not.toBeNull();
+    expect(before.x).toBeGreaterThanOrEqual(0);
+    expect(before.y).toBeGreaterThanOrEqual(0);
+    expect(before.x+before.width).toBeLessThanOrEqual(viewport.width+1);
+    expect(before.y+before.height).toBeLessThanOrEqual(viewport.height+1);
+    const moved=await page.evaluate(()=>{
+      const panes=["studio-projects-panel","studio-diagnostics-panel"];
+      return panes.map(id=>{
+        const el=document.querySelector('[data-testid="'+id+'"]');
+        if(!el?.firstElementChild) return false;
+        const spacer=document.createElement("div");
+        spacer.style.height="1500px";
+        spacer.style.flexShrink="0";
+        el.firstElementChild.appendChild(spacer);
+        el.scrollTop=el.scrollHeight;
+        return el.scrollTop>0;
+      });
+    });
+    expect(moved).toEqual([true,true]);
+    const after=await phone.boundingBox();
+    expect(after).not.toBeNull();
+    expect(Math.abs(after.x-before.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.y-before.y)).toBeLessThanOrEqual(1);
+  }
+});
