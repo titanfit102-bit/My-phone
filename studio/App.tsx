@@ -350,7 +350,7 @@ export default function App() {
           <View style={styles.sideFooter}><Text style={styles.sideFooterText}>Çdo aplikacion ka repository-n dhe procesin e publikimit të vet. Studio nuk kopjon ose modifikon kodin e tyre.</Text></View>
         </ScrollView>
         <View style={[styles.stage,isCompact&&styles.stageMobile]}>
-          <View style={styles.phoneColumn}>
+          <View style={[styles.phoneColumn,isCompact&&{minHeight:previewHeight+22,flexGrow:0,flexShrink:0}]}>
             <View style={styles.deviceArea}>
             <View style={[styles.device, {width:previewWidth,height:previewHeight},
               currentMode==="native"&&styles.nativeDevice]}>
@@ -466,9 +466,9 @@ const styles=StyleSheet.create({
   badgeText:{fontSize:9,color:"#BEC9E3",fontWeight:"800",letterSpacing:.5},
   badgeTextGreen:{color:"#85E9CB"},
   main:{flex:1,flexDirection:"row",gap:16,padding:16,minHeight:0},
-  mainMobile:{flexDirection:"column",padding:12},
+  mainMobile:{flexDirection:"column",padding:12,flexGrow:0,flexShrink:0,minHeight:0,overflow:"visible"},
   sidebar:{flexGrow:0,flexShrink:0,width:355,borderWidth:1,borderColor:C.outline,borderRadius:18,backgroundColor:"#130E17"},
-  sidebarMobile:{width:"100%",flexGrow:0,maxHeight:560},
+  sidebarMobile:{width:"100%",flexGrow:0,flexShrink:0,maxHeight:560,position:"relative",zIndex:2},
   sidebarContent:{padding:19,paddingBottom:32},
   sidebarHeading:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
   overline:{fontSize:10,fontWeight:"800",letterSpacing:1.5,color:"#E8AEC3"},
@@ -508,7 +508,7 @@ const styles=StyleSheet.create({
   sideFooter:{marginTop:30,paddingTop:16,borderTopWidth:1,borderTopColor:C.outline},
   sideFooterText:{color:"#7587A6",fontSize:11,lineHeight:19},
   stage:{flex:1,flexDirection:"row",gap:16,minWidth:0,minHeight:0,backgroundColor:"transparent"},
-  stageMobile:{flexDirection:"column",minHeight:650},
+  stageMobile:{flexDirection:"column",flexGrow:0,flexShrink:0,minHeight:0,position:"relative",zIndex:0,overflow:"visible"},
   stageScrollContent:{padding:30,paddingBottom:45,alignItems:"stretch"},
   stageHeading:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:14},
   stageHeadingMobile:{flexDirection:"column",alignItems:"flex-start"},
@@ -571,6 +571,6 @@ const styles=StyleSheet.create({
   leftModeControls:{marginBottom:15},
   phoneColumn:{flex:1,minWidth:0,minHeight:0,alignItems:"center",justifyContent:"center"},
   workspaceTools:{width:310,flexGrow:0,flexShrink:0,backgroundColor:"#150E19",borderWidth:1,borderColor:C.outline,borderRadius:18},
-  workspaceToolsMobile:{width:"100%",maxHeight:540},
+  workspaceToolsMobile:{width:"100%",maxHeight:540,flexGrow:0,flexShrink:0},
   workspaceToolsContent:{padding:17,paddingBottom:28},
 });
