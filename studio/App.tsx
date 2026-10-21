@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import PreviewHost from "./src/PreviewHost";
 import ZipImportPanel from "./src/ZipImportPanel";
+import type {QuickPreview} from "./src/ZipImportPanel.web";
 import {newProject, chooseMode, freshWebUrl} from "./src/project-model";
 import {readProjectRegistry, writeProjectRegistry, serializeProjectBackup,
   parseProjectBackup, MAX_BACKUP_BYTES} from "./src/project-storage";
@@ -60,6 +61,8 @@ export default function App() {
   const {width} = useWindowDimensions();
   const isCompact = width < 940;
   const [projects,setProjects] = useState<Project[]>([]);
+  // Session only: never persisted to localStorage, My Projects or server.
+  const [quickPreview,setQuickPreview]=useState<QuickPreview|null>(null);
   const [selected,setSelected] = useState<string|null>(null);
   const [mode,setMode] = useState<Mode>("web");
   const [formOpen,setFormOpen] = useState(false);
@@ -253,6 +256,7 @@ export default function App() {
   };
   const pick = (project:Project) => {
     if(project.id!==selected) resetFreeze();
+    setQuickPreview(null);
     setSelected(project.id);setFormOpen(false);setPendingRemoval(null);setMode(chooseMode(project,mode) as Mode);
     setRevision(r=>r+1);
   };
@@ -275,7 +279,7 @@ export default function App() {
             <Text style={styles.sidebarTitle}>Aplikacionet <Text style={{color:C.muted}}>({projects.length})</Text></Text></View>
             <RoundButton label="+ Shto" primary onPress={addNew}/></View>
           <Text style={styles.sidebarIntro}>Lidh repository-t e aplikacioneve pa përzier kodin e tyre me këtë studio.</Text>
-          <ZipImportPanel/>
+          <ZipImportPanel onPreview={value=>{setQuickPreview(value);if(value)setMode("web");}}/>
           {!!registryWarning&&<Text accessibilityRole="alert" style={styles.registryWarning}>{registryWarning}</Text>}
           <View style={styles.backupActions}>
             <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>
@@ -335,27 +339,28 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.stageScrollContent} style={styles.stage} showsVerticalScrollIndicator>
           <View style={[styles.stageHeading,isCompact&&styles.stageHeadingMobile]}>
             <View><Text style={styles.overline}>DEVICE LAB / LIVE PREVIEW</Text>
-              <Text style={styles.stageTitle}>{current?current.name:"Telefoni yt virtual"}</Text>
+              <Text style={styles.stageTitle}>{quickPreview?"Quick Preview · "+quickPreview.filename:current?current.name:"Telefoni yt virtual"}</Text>
               <Text style={styles.stageSubtitle}>Një pamje për Web dhe një emulator real Android në cloud.</Text></View>
-            <View style={styles.stageActions}><Badge good={!!current}>{current?"PROJEKT AKTIV":"NË PRITJE"}</Badge>
-              <RoundButton label="↻ Rifresko" onPress={manualRefresh}/></View>
+            <View style={styles.stageActions}><Badge good={!!quickPreview||!!current}>{quickPreview?"ZIP TEMPORARY":current?"PROJEKT AKTIV":"NË PRITJE"}</Badge>
+              <RoundButton label="↻ Rifresko" onPress={()=>quickPreview?setQuickPreview(value=>value?{...value,serial:value.serial+1}:null):manualRefresh()}/></View>
           </View>
           <View style={styles.modeSwitcher}>
             <Pressable accessibilityRole="button" onPress={()=>{setMode("web");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="web"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="web"&&styles.modeLabelActive]}>◈ Expo Web Preview</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={()=>{setMode("native");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" onPress={()=>{setQuickPreview(null);setMode("native");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="native"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="native"&&styles.modeLabelActive]}>▣ Android Cloud APK</Text></Pressable>
           </View>
           <View style={styles.stageNote}><Text style={styles.stageNoteText}>
-            {currentMode==="native"
+            {quickPreview ? "Quick Preview i izoluar, offline. Asnjë ZIP nuk ruhet; backend/API dhe disa media mund të mungojnë."
+              :currentMode==="native"
               ?"APK-ja ekzekutohet në Appetize pasi të jetë ngarkuar aty. Nisja e sesionit mund të konsumojë minuta me pagesë."
               :freezeEnabled
                 ?"Session Freeze: kontrollojmë versionin çdo 15 sekonda, pa rifreskuar automatikisht pamjen."
                 :"Kontrollojmë versionin çdo 15 sekonda. Kur mungojnë metadata-t, rifreskojmë çdo 60 sekonda dhe e shënojmë si të paverifikuar."}
           </Text></View>
-          {current && currentMode==="web" && <View style={styles.monitorPanel}>
+          {!quickPreview && current && currentMode==="web" && <View style={styles.monitorPanel}>
             <View style={styles.monitorHeader}>
               <View>
                 <Text style={styles.overline}>DEPLOYMENT OBSERVER · WEB</Text>
@@ -402,7 +407,10 @@ export default function App() {
               <View style={styles.deviceTop}><Text style={styles.deviceClock}>9:41</Text>
                 <View style={styles.deviceNotch}/><Text style={styles.deviceSignal}>◉ ▮▮</Text></View>
               <View style={styles.deviceScreen}>
-                {current&&previewUrl?<PreviewHost url={previewUrl} title={current.name} variant={currentMode} revision={revision}/>
+                {quickPreview ? <iframe key={"zip-"+quickPreview.serial} title="Quick Preview · ZIP"
+                  srcDoc={quickPreview.srcDoc} sandbox="allow-scripts" referrerPolicy="no-referrer"
+                  style={{width:"100%",height:"100%",border:0,backgroundColor:"#FFF"}}/>
+                  :current&&previewUrl?<PreviewHost url={previewUrl} title={current.name} variant={currentMode} revision={revision}/>
                   :<View style={styles.blankScreen}>
                     <View style={styles.blankIcon}><Text style={{color:C.accent,fontSize:44}}>◇</Text></View>
                     <Text style={styles.blankTitle}>{current?"S'ka lidhje për këtë modalitet":"Hap një aplikacion"}</Text>
@@ -413,17 +421,17 @@ export default function App() {
               <View style={styles.deviceBottom}><View style={styles.deviceHome}/></View>
             </View>
             <View style={styles.previewTools}><View style={styles.statusRow}>
-              <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
-              {current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
-              {currentMode==="web"&&current&&previewUrl&&<Text style={styles.infoSmall}>Nëse iframe është bosh ose i bllokuar nga CSP/X-Frame-Options, hape jashtë Studios. URL e lidhur nuk provon ngarkim të suksesshëm.</Text>}
-              <Text style={styles.infoSmall}>{currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
-              {currentMode==="web"&&syncEnabled&&<RoundButton label={freezeEnabled?"Çaktivizo Session Freeze":"Aktivizo Session Freeze"} onPress={toggleFreeze}/>}
-              {currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
+              <View style={styles.greenDot}/><Text style={styles.statusText}>{quickPreview?"Quick Preview · sesion privat, pa ruajtje":current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
+              {!quickPreview&&current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
+              {!quickPreview&&currentMode==="web"&&current&&previewUrl&&<Text style={styles.infoSmall}>Nëse iframe është bosh ose i bllokuar nga CSP/X-Frame-Options, hape jashtë Studios. URL e lidhur nuk provon ngarkim të suksesshëm.</Text>}
+              <Text style={styles.infoSmall}>{quickPreview?"ZIP vetëm në RAM · offline":currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
+              {!quickPreview&&currentMode==="web"&&syncEnabled&&<RoundButton label={freezeEnabled?"Çaktivizo Session Freeze":"Aktivizo Session Freeze"} onPress={toggleFreeze}/>}
+              {!quickPreview&&currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
               {lastUpdate&&<Text style={styles.infoSmall}>Rifreskimi i fundit: {lastUpdate}</Text>}
             </View>
           </View>
           <View style={styles.disclaimer}><Text style={styles.disclaimerText}>
-            {currentMode==="native"?
+            {quickPreview?quickPreview.warning:currentMode==="native"?
             "Native Preview është emulator real vetëm kur ke lidhur një Appetize build të vlefshëm. Versionet e reja APK kërkojnë build/upload të ri dhe përditësim të lidhjes.":
             "Pamja Expo Web nuk është emulator Android. Aplikacioni duhet të jetë i publikuar dhe të lejojë iframe; nëse bllokohet, hape jashtë studios."}
           </Text></View>
