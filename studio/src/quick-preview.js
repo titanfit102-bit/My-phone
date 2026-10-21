@@ -167,7 +167,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
   const js=getAttribute(html,"script","src");
   const css=getAttribute(html,"link","href").filter(x=>/\.css(?:$|[?#])/i.test(x));
   if(js.length!==1||!js[0].endsWith(".js")||css.length>MAX_STYLESHEETS)
-    reject("Quick Preview mbështet një bundle JS dhe maksimumi katër CSS lokale.");
+    reject("Quick Preview mbështet vetëm build Vite me një bundle JS dhe maksimumi katër CSS lokale.");
   const jsPath=locateAsset(index,js[0]);
   const code=decoder.decode(await getBytes(buffer,all.get(jsPath),MAX_JS));
   const cache=new Map(),budget={bytes:0};
