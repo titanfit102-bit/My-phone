@@ -4,7 +4,9 @@ import {
   Text, TextInput, useWindowDimensions, View
 } from "react-native";
 import PreviewHost from "./src/PreviewHost";
-import {STORAGE_KEY, newProject, loadProjects, chooseMode, freshWebUrl} from "./src/project-model";
+import {newProject, chooseMode, freshWebUrl} from "./src/project-model";
+import {readProjectRegistry, writeProjectRegistry, serializeProjectBackup,
+  parseProjectBackup, MAX_BACKUP_BYTES} from "./src/project-storage";
 import {
   SYNC_POLL_MS, FALLBACK_REFRESH_MS, FETCH_TIMEOUT_MS, MAX_MANIFEST_BYTES,
   manifestUrl, parseManifest, initialSyncState, transitionSync, applyPendingSync, summarizeSync
@@ -26,16 +28,11 @@ const C = {
   orange:"#F4B56B", red:"#FB7786", surface:"#0D1526", soft:"#BAC7E0"
 };
 const isWeb = Platform.OS === "web";
-const canStore = isWeb && typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 const link = (value:string) => { if(value) void Linking.openURL(value).catch(() => {}); };
 const newId = () => "project-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 9);
-function safeLoad():Project[] {
-  if(!canStore) return [];
-  try{return loadProjects(window.localStorage.getItem(STORAGE_KEY));}catch{return [];}
-}
-function persist(projects:Project[]) {
-  if(!canStore) return;
-  try {window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));}catch{}
+function browserStorage():Storage|null {
+  if(!isWeb || typeof window === "undefined") return null;
+  try {return window.localStorage;}catch{return null;}
 }
 function RoundButton({label, onPress, primary=false, danger=false}:{
   label:string;onPress:()=>void;primary?:boolean;danger?:boolean
@@ -70,6 +67,9 @@ export default function App() {
   const [draft,setDraft] = useState<Draft>(EMPTY);
   const [error,setError] = useState("");
   const [loaded,setLoaded] = useState(false);
+  const writableRegistry = useRef(false);
+  const [registryWarning,setRegistryWarning] = useState("");
+  const [backupMessage,setBackupMessage] = useState("");
   const [revision,setRevision] = useState(1);
   const [syncEnabled,setSyncEnabled] = useState(true);
   const [freezeEnabled,setFreezeEnabled] = useState(false);
@@ -79,12 +79,58 @@ export default function App() {
   const [syncState,setSyncState] = useState<DeploymentSync>(initialSyncState());
 
   useEffect(()=> {
-    const state = safeLoad();
-    setProjects(state);
-    setSelected(state[0]?.id || null);
+    if(!isWeb) {setLoaded(true);return;}
+    const result = readProjectRegistry(browserStorage());
+    writableRegistry.current = result.ok;
+    setProjects(result.projects);
+    setSelected(result.projects[0]?.id || null);
+    if(!result.ok) setRegistryWarning(
+      result.reason==="unreadable"
+        ?"Të dhënat lokale nuk lexohen ose janë të dëmtuara. Studio nuk do t'i mbishkruajë automatikisht. Importo një backup të vlefshëm."
+        :"Shfletuesi nuk lejon ruajtjen lokale. Ndryshimet e kësaj seance mund të humbasin.");
     setLoaded(true);
   },[]);
-  useEffect(()=> {if(loaded)persist(projects);},[loaded,projects]);
+  useEffect(()=> {
+    if(!loaded || !isWeb || !writableRegistry.current) return;
+    const saved=writeProjectRegistry(browserStorage(),projects);
+    setRegistryWarning(saved.ok ? "" :
+      "Ruajtja lokale dështoi. Projektet shfaqen vetëm në këtë seancë; shkarko një kopje JSON.");
+  },[loaded,projects]);
+
+  const exportBackup=()=>{
+    if(!isWeb || typeof document==="undefined") return;
+    try {
+      const contents=serializeProjectBackup(projects);
+      const url=URL.createObjectURL(new Blob([contents],{type:"application/json"}));
+      const anchor=document.createElement("a");
+      anchor.href=url;anchor.download="my-phone-studio-projects-backup.json";
+      document.body.appendChild(anchor);anchor.click();anchor.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setBackupMessage("Kopja JSON u përgatit. Ruaje në një vend të sigurt.");
+    }catch{setBackupMessage("Nuk u krijua kopja. Kontrollo të dhënat e projekteve.");}
+  };
+  const importBackup=()=>{
+    if(!isWeb || typeof document==="undefined") return;
+    const input=document.createElement("input");
+    input.type="file";input.accept=".json,application/json";
+    input.onchange=async()=>{
+      const file=input.files?.[0];if(!file)return;
+      try {
+        if(file.size>MAX_BACKUP_BYTES)throw new Error("Skedari tejkalon kufirin e sigurisë.");
+        const imported=parseProjectBackup(await file.text()) as Project[];
+        const existing=new Set(projects.map(p=>p.id));
+        const merged=[...projects,...imported.filter(p=>!existing.has(p.id))];
+        const saved=writeProjectRegistry(browserStorage(),merged);
+        if(!saved.ok)throw new Error("Importi nuk u ruajt; ndryshimet ekzistuese nuk u prekën.");
+        writableRegistry.current=true;
+        setRegistryWarning("");
+        setProjects(merged);
+        setSelected(previous=>previous||merged[0]?.id||null);
+        setBackupMessage("Backup u importua: "+(merged.length-projects.length)+" projekte të reja.");
+      }catch(err){setBackupMessage(err instanceof Error?err.message:"Backup nuk është i vlefshëm.");}
+    };
+    input.click();
+  };
   const current = projects.find(p=>p.id===selected) || null;
   const currentMode = current ? chooseMode(current,mode) as Mode : mode;
   const reload = useCallback(()=>{setRevision(r=>r+1);setLastUpdate(new Date().toLocaleTimeString("sq-AL"));},[]);
@@ -228,6 +274,12 @@ export default function App() {
             <Text style={styles.sidebarTitle}>Aplikacionet <Text style={{color:C.muted}}>({projects.length})</Text></Text></View>
             <RoundButton label="+ Shto" primary onPress={addNew}/></View>
           <Text style={styles.sidebarIntro}>Lidh repository-t e aplikacioneve pa përzier kodin e tyre me këtë studio.</Text>
+          {!!registryWarning&&<Text accessibilityRole="alert" style={styles.registryWarning}>{registryWarning}</Text>}
+          <View style={styles.backupActions}>
+            <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>
+            <RoundButton label="↑ Importo backup JSON" onPress={importBackup}/>
+          </View>
+          {!!backupMessage&&<Text accessibilityRole="status" style={styles.backupMessage}>{backupMessage}</Text>}
           {projects.length===0&&!formOpen&&<View style={styles.emptySide}>
             <Text style={styles.emptyGlyph}>◇</Text><Text style={styles.emptyTitle}>Studio është gati.</Text>
             <Text style={styles.emptyDesc}>Shto aplikacionin tënd të parë me lidhjen GitHub dhe URL Web ose Appetize.</Text>
@@ -359,8 +411,9 @@ export default function App() {
               <View style={styles.deviceBottom}><View style={styles.deviceHome}/></View>
             </View>
             <View style={styles.previewTools}><View style={styles.statusRow}>
-              <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"URL e demonstrimit e konfiguruar":"Në pritje të lidhjes"}</Text></View>
+              <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
               {current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
+              {currentMode==="web"&&current&&previewUrl&&<Text style={styles.infoSmall}>Nëse iframe është bosh ose i bllokuar nga CSP/X-Frame-Options, hape jashtë Studios. URL e lidhur nuk provon ngarkim të suksesshëm.</Text>}
               <Text style={styles.infoSmall}>{currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
               {currentMode==="web"&&syncEnabled&&<RoundButton label={freezeEnabled?"Çaktivizo Session Freeze":"Aktivizo Session Freeze"} onPress={toggleFreeze}/>}
               {currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
@@ -470,6 +523,9 @@ const styles=StyleSheet.create({
   statusRow:{flexDirection:"row",gap:7,alignItems:"center"},
   statusText:{color:"#C3D0EC",fontSize:11,fontWeight:"800"},
   infoSmall:{fontSize:10,color:C.muted,fontWeight:"700"},
+  backupActions:{flexDirection:"row",flexWrap:"wrap",gap:6,marginBottom:11},
+  backupMessage:{color:C.soft,fontSize:11,marginBottom:10,lineHeight:18},
+  registryWarning:{backgroundColor:"#402B2D",borderColor:C.red,borderWidth:1,borderRadius:9,padding:10,color:"#FFD6D9",fontSize:11,lineHeight:18,marginBottom:12},
   monitorPanel:{marginTop:18,padding:18,borderRadius:14,borderWidth:1,borderColor:C.outline,backgroundColor:C.panel},
   monitorHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8},
   monitorTitle:{fontSize:17,fontWeight:"900",color:C.text,marginTop:7},
