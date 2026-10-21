@@ -37,7 +37,13 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
         if(ticket!==epoch.current)return;
         const failure=e instanceof Error?e.message:"ZIP nuk mund të shfaqet.";
         setMessage(failure);
-        if(inspection)setAssessment(assessZipInspection(inspection,{status:"failed",error:failure}));
+        if(inspection){
+          const decision=assessZipInspection(inspection);
+          // A source-only archive needs a build; do not mask this with a generic renderer error.
+          setAssessment(decision.decision.status==="candidate"
+            ? assessZipInspection(inspection,{status:"failed",error:failure})
+            : decision);
+        }
       }finally{if(ticket===epoch.current)setBusy(false);}
     };
     picker.click();
