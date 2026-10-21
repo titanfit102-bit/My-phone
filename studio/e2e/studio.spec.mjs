@@ -358,3 +358,34 @@ test("premium desktop phone remains fully visible while both side panels scroll"
     expect(Math.abs(after.y-before.y)).toBeLessThanOrEqual(1);
   }
 });
+
+
+test("Advanced ZIP keeps multiple CSS and local raster images inside isolated phone frame",async ({page})=>{
+  await page.goto("/");
+  const pixel=Uint8Array.from(Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/G8cAAAAASUVORK5CYII=","base64"));
+  const zip=makeZip([
+    {name:"example-main/dist/index.html",content:'<!doctype html><link rel="stylesheet" href="/assets/a.css"><link rel="stylesheet" href="/assets/b.css"><script type="module" src="/assets/app.js"></script>'},
+    {name:"example-main/dist/assets/app.js",content:"document.getElementById('root').textContent='Advanced ZIP Working';"},
+    {name:"example-main/dist/assets/a.css",content:"#root{background-image:url('../images/pixel.png')}",method:8},
+    {name:"example-main/dist/assets/b.css",content:"#root{color:rgb(10, 110, 90)}"},
+    {name:"example-main/dist/images/pixel.png",bytes:pixel,method:8}
+  ]);
+  const [picker]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
+  ]);
+  await picker.setFiles({name:"advanced.zip",mimeType:"application/zip",buffer:Buffer.from(zip)});
+  const frame=page.frameLocator('iframe[title="Quick Preview · ZIP"]');
+  const root=frame.locator("#root");
+  await expect(root).toHaveText("Advanced ZIP Working");
+  const styling=await root.evaluate(el=>({
+    background:getComputedStyle(el).backgroundImage,
+    color:getComputedStyle(el).color
+  }));
+  expect(styling.background).toContain("data:image/png;base64,");
+  expect(styling.color).toBe("rgb(10, 110, 90)");
+  await expect(page.getByText("ENGINE CORE · OFFLINE_PAYLOAD_PREPARED")).toBeVisible();
+  await page.getByRole("button",{name:"✕ Mbyll Quick Preview"}).click();
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+});
