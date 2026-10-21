@@ -6,6 +6,8 @@ on:
     paths:
       - "studio/**"
       - ".github/workflows/studio-verify.yml"
+      - ".github/workflows/verify.yml"
+      - "tests/**"
   pull_request:
     branches: [main]
     paths:

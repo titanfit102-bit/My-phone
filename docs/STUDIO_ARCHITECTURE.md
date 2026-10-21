@@ -5,7 +5,6 @@
 The **My-phone** repository hosts the central *viewer/studio only*. Never copy an unrelated application's source into this repository.
 
 Existing, working surfaces remain:
-- `extension/`: Chrome Side Panel v0.2; separate from new Expo Web studio.
 - `web/`: original standalone proof-of-concept web app and its current Vercel deployment.
 - `studio/`: new Expo + React Native Web application; deploy as a **new** Vercel project with Root Directory `studio`.
 
