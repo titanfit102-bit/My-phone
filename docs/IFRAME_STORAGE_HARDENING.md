@@ -2,7 +2,7 @@
 
 ## Behavior
 
-The registry still stores **references only** in the browser's localStorage key `my-phone-studio-projects-v1`. It does not synchronize with Chrome Extension, other browsers, or devices.
+The registry still stores **references only** in the browser's localStorage key `my-phone-studio-projects-v1`. It does not synchronize across browsers or devices.
 
 ### Persistence and recovery
 
@@ -12,7 +12,6 @@ The registry still stores **references only** in the browser's localStorage key 
 - `↓ Eksporto backup JSON` downloads a versioned JSON file containing only the user's saved project links. Check its contents before sharing it, because repository URLs might be private.
 - `↑ Importo backup JSON` validates the entire file, including links and IDs. It **merges** new IDs with the current page; existing IDs retain their current values, preventing accidental overwrites. Import writes to storage **before** declaring success.
 - Backup import is restricted to 200 KB and at most 100 projects. If storage is unavailable it reports failure and does not claim recovery.
-- The Chrome Extension maintains a **separate** storage model. This PR does not claim to synchronize the Studio and Extension.
 
 ### iframe policy and limitation
 
@@ -36,4 +35,4 @@ npm run test:e2e
 
 Playwright runs Chromium desktop/mobile on a loopback server with only synthetic HTTPS preview URLs. The test matrix includes quota-denied storage, JSON export, invalid registry preservation, restore via a browser file picker, invalid import, CSP frame denial and X-Frame-Options denial. No production site or real connected application's code is altered or contacted.
 
-Remaining work: real target app CSP/configuration acceptance, Chrome Extension installed interactive test, durable cross-device storage sync, and an independent security review before adding privileged integrations.
+Remaining work: real target app CSP/configuration acceptance, durable cross-device storage sync, and an independent security review before adding privileged integrations.

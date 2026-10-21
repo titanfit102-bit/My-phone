@@ -2,9 +2,8 @@
 
 Repo qendrore për demonstrime të izoluara të aplikacioneve të ndryshme. **Mos vendos kodin e një aplikacioni tjetër këtu.**
 
-## Dy ndërfaqe të pavarura
+## Komponentët e repository-t
 
-- **`extension/` — My Phone Chrome Extension v0.2**: ruan lidhjet e aplikacioneve GitHub + Web, shfaq demonstrimet e publikuara në Chrome Side Panel.
 - **`studio/` — My Phone Expo Developer Studio v0.4**: React Native + Expo Web me Live Sync për versionet e publikuara, rifreskim rezervë për aplikacionet pa metadata, dhe Android Cloud APK Preview për build-e të regjistruara në Appetize.
 - **`web/`**: shembulli origjinal i vogël i aplikacionit web për prova. Shërbimi ekzistues i Vercel për këtë shembull mbetet i pandryshuar.
 
@@ -14,11 +13,11 @@ Dokumentim:
 - [Studio Architecture](docs/STUDIO_ARCHITECTURE.md)
 - [Live Sync v0.4 — kontrata dhe verifikimi](docs/LIVE_SYNC_V04.md)
 - [Expo Studio Readme](studio/README.md)
-- [Lidh një aplikacion të ri me Chrome Extension](docs/CONNECT_A_NEW_APP.md)
+- [Lidh një aplikacion të ri me Expo Studio](docs/CONNECT_A_NEW_APP.md)
 
 ## Testet
 
-Për komponentët origjinalë:
+Për demonstrimin origjinal web:
 ```bash
 npm test && npm run build
 ```

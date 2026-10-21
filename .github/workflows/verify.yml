@@ -23,10 +23,3 @@ jobs:
         run: npm run build
       - name: Verify deploy metadata
         run: node -e "const x=require('./dist/build-info.json');if(!x.revision||!x.builtAt)process.exit(1)"
-      - name: Upload unpacked Chrome Extension
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-phone-extension
-          path: extension/
-          if-no-files-found: error
-          retention-days: 14

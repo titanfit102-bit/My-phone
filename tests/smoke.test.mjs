@@ -12,15 +12,8 @@ test("config has a supported profile position and valid color", async () => {
   assert.ok(["left", "right"].includes(cfg.profilePosition));
   assert.match(cfg.accentColor, /^#[0-9a-fA-F]{6}$/);
 });
-test("Chrome extension exposes a side panel without persistent broad host access", async () => {
-  const manifest = JSON.parse(await read("extension/manifest.json"));
-  assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.side_panel.default_path, "sidepanel.html");
-  assert.ok(manifest.optional_host_permissions.includes("https://*/*"));
-  assert.ok(!manifest.permissions.includes("<all_urls>"));
-});
 test("browser scripts are syntactically valid", async () => {
-  for (const file of ["web/app.js", "extension/background.js", "extension/sidepanel.js"]) {
+  for (const file of ["web/app.js"]) {
     execFileSync(process.execPath, ["--check", resolve(root, file)]);
   }
 });
