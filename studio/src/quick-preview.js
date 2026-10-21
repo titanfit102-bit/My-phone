@@ -1,6 +1,14 @@
 import {inspectZip} from "./zip-inspector.js";
-// Offline preview only: built Vite single JS bundle. No scripts from source ZIP run in Studio origin.
-const MAX_HTML=256*1024, MAX_JS=8*1024*1024, MAX_CSS=2*1024*1024;
+// Offline preview only: one prebuilt JS bundle, multiple local CSS files and bounded raster/font assets.
+// No source ZIP execution in the Studio origin, network access or unbounded extraction.
+const MAX_HTML=256*1024, MAX_JS=8*1024*1024, MAX_CSS_TOTAL=2*1024*1024;
+const MAX_STYLESHEETS=4, MAX_LOCAL_ASSETS=24, MAX_ASSET_BYTES=512*1024;
+const MAX_TOTAL_ASSET_BYTES=3*1024*1024;
+const MIME_BY_EXT={
+  png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",
+  webp:"image/webp",avif:"image/avif",woff:"font/woff",woff2:"font/woff2",
+  ttf:"font/ttf",otf:"font/otf"
+};
 const decoder=new TextDecoder("utf-8",{fatal:true});
 const u16=(v,p)=>v.getUint16(p,true),u32=(v,p)=>v.getUint32(p,true);
 const reject=message=>{throw Error(message);};
@@ -77,6 +85,67 @@ async function getBytes(buffer,entry,limit){
     reject("ZIP nuk mund të çkompresohet.");
   }finally{try{reader?.releaseLock();}catch{}}
 }
+
+function resolveCssAsset(index,stylesheet,url){
+  if (!url || url.startsWith("//") || /^[a-z][a-z0-9+.-]*:/i.test(url) ||
+      /[?#\\%]/.test(url)) reject("CSS ka lidhje asset-esh të pambështetura.");
+  const root=index.slice(0,index.lastIndexOf("/")+1).split("/").filter(Boolean);
+  const base=url.startsWith("/") ? [...root] : stylesheet.split("/").slice(0,-1);
+  const segments=url.replace(/^\/+/,"").split("/");
+  for (const segment of segments){
+    if (!segment || segment==="." ){if(!segment)reject("CSS ka rrugë të pavlefshme.");continue;}
+    if(segment===".."){
+      if(base.length<=root.length) reject("CSS ka rrugë jashtë build-it.");
+      base.pop();
+    }else base.push(segment);
+  }
+  if (base.length<=root.length || !root.every((part,i)=>base[i]===part))
+    reject("CSS ka rrugë jashtë build-it.");
+  return base.join("/");
+}
+function toBase64(bytes){
+  let text="";
+  for(let i=0;i<bytes.length;i+=16384)
+    text+=String.fromCharCode(...bytes.subarray(i,i+16384));
+  return btoa(text);
+}
+async function inlineCssReferences(css,stylesheet,index,all,buffer,cache,budget){
+  if(/@import\b/i.test(css))
+    reject("CSS @import nuk mbështetet në preview offline.");
+  const ref=/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi;
+  let output="",position=0;
+  for(const match of css.matchAll(ref)){
+    const value=(match[1]??match[2]??match[3]??"").trim();
+    output+=css.slice(position,match.index);
+    position=match.index+match[0].length;
+    if(value.startsWith("#")){output+=match[0];continue;}
+    if(value.startsWith("data:")){
+      if(!/^data:(?:image\/(?:png|jpeg|gif|webp|avif)|font\/(?:woff2?|ttf|otf));base64,[A-Za-z0-9+/=]+$/i.test(value))
+        reject("CSS data URL i pambështetur.");
+      output+=match[0];continue;
+    }
+    const path=resolveCssAsset(index,stylesheet,value);
+    const extension=path.split(".").at(-1)?.toLowerCase();
+    const mime=MIME_BY_EXT[extension];
+    if(!mime)reject("CSS kërkon një asset të pambështetur: "+extension);
+    let uri=cache.get(path);
+    if(!uri){
+      if(cache.size>=MAX_LOCAL_ASSETS)
+        reject("CSS tejkalon numrin e asset-eve lokale.");
+      const file=all.get(path);
+      if(!file)reject("CSS kërkon një asset që mungon.");
+      const bytes=await getBytes(buffer,file,MAX_ASSET_BYTES);
+      if(budget.bytes+bytes.length>MAX_TOTAL_ASSET_BYTES)
+        reject("CSS tejkalon madhësinë totale të asset-eve.");
+      budget.bytes+=bytes.length;
+      uri="data:"+mime+";base64,"+toBase64(bytes);
+      cache.set(path,uri);
+    }
+    output+='url("'+uri+'")';
+  }
+  return output+css.slice(position);
+}
+
 const escapeTag=(s,tag)=>s.replace(new RegExp("</"+tag,"gi"),"<\\/"+tag);
 // Sandbox origin is opaque. This virtual storage exists only for the iframe lifetime.
 const sessionStorageShim= [
@@ -96,12 +165,23 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
   const index=indexes[0];
   const html=decoder.decode(await getBytes(buffer,all.get(index),MAX_HTML));
   const js=getAttribute(html,"script","src");
-  const css=getAttribute(html,"link","href").filter(x=>x.endsWith(".css"));
-  if(js.length!==1||!js[0].endsWith(".js")||css.length>1)
-    reject("Quick Preview mbështet vetëm build Vite me një bundle JS dhe maksimumi një CSS.");
-  const jsPath=locateAsset(index,js[0]),cssPath=css[0]?locateAsset(index,css[0]):null;
+  const css=getAttribute(html,"link","href").filter(x=>/\.css(?:$|[?#])/i.test(x));
+  if(js.length!==1||!js[0].endsWith(".js")||css.length>MAX_STYLESHEETS)
+    reject("Quick Preview mbështet një bundle JS dhe maksimumi katër CSS lokale.");
+  const jsPath=locateAsset(index,js[0]);
   const code=decoder.decode(await getBytes(buffer,all.get(jsPath),MAX_JS));
-  const style=cssPath?decoder.decode(await getBytes(buffer,all.get(cssPath),MAX_CSS)):"";
+  const cache=new Map(),budget={bytes:0};
+  const styles=[];let totalCssBytes=0;
+  for (const url of css){
+    const path=locateAsset(index,url);
+    const file=all.get(path);
+    if(!file)reject("Mungon një CSS e referuar në Web build.");
+    totalCssBytes+=file.size;
+    if(totalCssBytes>MAX_CSS_TOTAL)reject("CSS tejkalon madhësinë totale të lejuar.");
+    const source=decoder.decode(await getBytes(buffer,file,MAX_CSS_TOTAL));
+    styles.push(await inlineCssReferences(source,path,index,all,buffer,cache,budget));
+  }
+  const style=styles.join("\n");
   const policy="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src blob: data:; font-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
   const srcDoc='<!doctype html><html><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
@@ -110,6 +190,6 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     '</style></head><body><div id="root"></div><script>'+
     escapeTag(sessionStorageShim,"script")+'</script><script type="module">'+
     escapeTag(code,"script")+'</script></body></html>';
-  return {filename,indexPath:index,srcDoc,
-    warning:"Preview offline i përkohshëm: API/backend, media të jashtme dhe module shtesë mund të mos funksionojnë."};
+  return {filename,indexPath:index,srcDoc,cssCount:css.length,localAssetCount:cache.size,
+    warning:"Preview offline i përkohshëm: API/backend, asete të tjera nga JavaScript dhe module shtesë mund të mos funksionojnë."};
 }
