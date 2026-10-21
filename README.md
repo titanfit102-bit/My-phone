@@ -13,6 +13,12 @@
 
 **Komponentët legacy janë tërhequr nga produkti:** Chrome Extension u hoq në PR #9; demoja standalone `web/` dhe build-i i saj nuk janë pjesë e Studios. Pas miratimit dhe integrimit të PR-së së pastrimit, këta komponentë nuk janë më pjesë e kodit aktual. Historiku Git ruhet për auditim dhe rikthim.
 
+## Quick Preview ZIP — faza për ZIP-et me Web build
+
+Në sidebar përdor **↑ Ngarko ZIP**. Studio kontrollon ZIP-in lokalisht, kërkon `dist/index.html` (ose `build/out`) dhe një bundle JS të vetëm me maksimumi një CSS. Nëse gjendet, e çkompreson **vetëm përkohësisht në shfletues** dhe shfaq pamjen në telefonin virtual në një `iframe` të izoluar (pa same-origin). **Nuk ruan ZIP-in ose preview-n në My Projects, localStorage apo databazë**. Butoni **✕ Mbyll Quick Preview** e mbyll menjëherë; rifreskimi ose mbyllja e faqes e humbet sesionin.
+
+Për këtë modalitet nuk ka nevojë për pagesë cloud, instalim në kompjuter apo akses në GitHub. **Nuk është build automatik**: ZIP që përmban vetëm kod burimor kërkon build më vete. Preview është offline dhe API/backend, fontet/media të jashtme, module të ndara ose APK reale mund të mos funksionojnë. Përdor `Quick Preview` vetëm për build-et Web që i njeh. Shih [kufizimet dhe testet](docs/QUICK_PREVIEW_ZIP.md).
+
 ## ZIP Import — faza 1 (analizë e sigurt, jo build)
 
 Në sidebar ekziston **↑ Ngarko ZIP** për të zgjedhur arkivin e shkarkuar nga GitHub main. Studio analizon vetëm indeksin/strukturën e ZIP-it lokalisht, zbulon me indikacione framework-un dhe dallon kodin burimor nga kandidati për build Web statik. **Nuk nxjerr, ekzekuton, ruan apo ngarkon kodin në server. Nuk prodhon ende preview nga ky ZIP.** Kufijtë: ZIP maksimal 32 MB, 5000 hyrje, 512 MB madhësi e deklaruar e çkompresuar; arkivat me emra të pasigurt, lidhje simbolike, ZIP64 apo enkriptim refuzohen. Kjo aftësi nuk kërkon kredenciale GitHub dhe nuk prek projektet e tjera.
