@@ -142,3 +142,97 @@ test("Session Freeze preserves an unfinished iframe form until the user accepts 
   await page.getByRole("button",{name:"Çaktivizo Session Freeze"}).click();
   await expect(page.getByRole("button",{name:"Aktivizo Session Freeze"})).toBeVisible();
 });
+
+test("quota-denied writes show a warning and allow downloading a valid backup",async ({page})=>{
+  await page.addInitScript(()=>{
+    const original=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(key,value){
+      if(key==="my-phone-studio-projects-v1")throw new DOMException("Storage full","QuotaExceededError");
+      return original.call(this,key,value);
+    };
+  });
+  await mockApplication(page);
+  await page.goto("/");
+  await createProject(page,"Unsaved Demo");
+  await expect(page.getByRole("alert")).toContainText("Ruajtja lokale dështoi");
+  const [download]=await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button",{name:"↓ Eksporto backup JSON"}).click()
+  ]);
+  expect(download.suggestedFilename()).toBe("my-phone-studio-projects-backup.json");
+  const {readFile}=await import("node:fs/promises");
+  const saved=JSON.parse(await readFile(await download.path(),"utf8"));
+  expect(saved.format).toBe("my-phone-studio-backup-v1");
+  expect(saved.projects.map(x=>x.name)).toEqual(["Unsaved Demo"]);
+  await page.reload();
+  await expect(page.getByRole("button",{name:"Hap Unsaved Demo"})).toHaveCount(0);
+});
+
+test("corrupt preexisting registry is not silently erased on startup",async ({page})=>{
+  await page.addInitScript(()=>{
+    if(!sessionStorage.getItem("corrupted-once")){
+      localStorage.setItem("my-phone-studio-projects-v1","{damaged original");
+      sessionStorage.setItem("corrupted-once","yes");
+    }
+  });
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText("nuk lexohen");
+  await createProject(page,"Ephemeral Project");
+  await expect(page.getByRole("button",{name:"Hap Ephemeral Project"})).toBeVisible();
+  const raw=await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1"));
+  expect(raw).toBe("{damaged original");
+});
+
+test("a validated JSON backup can restore projects using the browser file chooser",async ({page})=>{
+  const project={
+    id:"project-import-demo",name:"Restored Demo",
+    github:"https://github.com/example/demo-app",web:"https://preview.example.test/",native:""
+  };
+  await mockApplication(page);
+  await page.goto("/");
+  const [picker]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Importo backup JSON"}).click()
+  ]);
+  await picker.setFiles({
+    name:"backup.json",mimeType:"application/json",
+    buffer:Buffer.from(JSON.stringify({format:"my-phone-studio-backup-v1",projects:[project]}))
+  });
+  await expect(page.getByRole("button",{name:"Hap Restored Demo"})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button",{name:"Hap Restored Demo"})).toBeVisible();
+  // Invalid backup is rejected in full; the valid imported project survives.
+  const [picker2]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Importo backup JSON"}).click()
+  ]);
+  await picker2.setFiles({name:"invalid.json",mimeType:"application/json",buffer:Buffer.from('{"format":"wrong","projects":[]}')});
+  await expect(page.getByText("Ky skedar nuk është backup i My Phone Studio.")).toBeVisible();
+  await expect(page.getByRole("button",{name:"Hap Restored Demo"})).toBeVisible();
+});
+
+for(const defense of ["csp","x-frame-options"]){
+  test("iframe blocked by "+defense+" remains explicitly unverified with external fallback",async ({page})=>{
+    const blocked="https://blocked.example.test";
+    let frameRequested=false;
+    await page.route(/^https:\/\/blocked\.example\.test\//,async route=>{
+      const pathname=new URL(route.request().url()).pathname;
+      if(pathname==="/build-info.json")
+        return route.fulfill({status:404,headers:{"Access-Control-Allow-Origin":"*"},body:"Not Found"});
+      frameRequested=true;
+      const headers={"content-type":"text/html"};
+      if(defense==="csp")headers["content-security-policy"]="frame-ancestors 'none'";
+      else headers["x-frame-options"]="DENY";
+      return route.fulfill({status:200,headers,body:"<html><body><h1 data-testid='must-not-show'>Forbidden Frame</h1></body></html>"});
+    });
+    await page.goto("/");
+    await createProject(page,"Blocked Preview",blocked);
+    await expect(page.locator('iframe[title="Blocked Preview · Expo Web"]')).toBeVisible();
+    await expect(page.getByText("URL e lidhur · shfaqja në iframe e paverifikuar")).toBeVisible();
+    await expect(page.getByText(/Nëse iframe është bosh ose i bllokuar/)).toBeVisible();
+    await expect(page.getByRole("button",{name:/Hap jashtë studios/})).toBeVisible();
+    await expect.poll(()=>frameRequested).toBe(true);
+    await expect(preview(page,"Blocked Preview").getByTestId("must-not-show")).toHaveCount(0);
+    await expect(page.getByRole("button",{name:"Hap Blocked Preview"})).toBeVisible();
+  });
+}
