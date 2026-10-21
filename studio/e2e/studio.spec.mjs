@@ -239,7 +239,7 @@ for(const defense of ["csp","x-frame-options"]){
 
 import {makeZip} from "../tests/zip-fixtures.mjs";
 
-test("GitHub main ZIP can be picked locally and Expo source is identified, not executed",async ({page})=>{
+test("GitHub source-only ZIP explains that build is needed and does not execute source",async ({page})=>{
   await page.goto("/");
   const archive=makeZip([
     {name:"hello-main/package.json",content:'{"dependencies":{"expo":"latest"}}'},
@@ -251,9 +251,8 @@ test("GitHub main ZIP can be picked locally and Expo source is identified, not e
     page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
   ]);
   await chooser.setFiles({name:"hello-main.zip",mimeType:"application/zip",buffer:Buffer.from(archive)});
-  await expect(page.getByText("Framework: Expo / React Native (indikacion)")).toBeVisible();
-  await expect(page.getByText("Preview: NUK është gjeneruar. Build-i është fazë tjetër, me autorizim.")).toBeVisible();
-  await expect(page.getByText(/Asnjë skedar nuk u ekzekutua ose dërgua në server/)).toBeVisible();
+  await expect(page.getByText(/Nuk gjendet dist\/index.html/)).toBeVisible();
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
 });
 
 test("unsafe ZIP entries are rejected before any preview is created",async ({page})=>{
@@ -268,7 +267,7 @@ test("unsafe ZIP entries are rejected before any preview is created",async ({pag
   await expect(page.getByText("Preview: NUK është gjeneruar. Build-i është fazë tjetër, me autorizim.")).toHaveCount(0);
 });
 
-test("plain built HTML ZIP is labeled a candidate rather than falsely previewed",async ({page})=>{
+test("HTML-only ZIP lacking its JS bundle cannot falsely claim working preview",async ({page})=>{
   await page.goto("/");
   const file=makeZip([{name:"dist/index.html",content:"<html><body>ZIP preview not running</body></html>"}]);
   const [chooser]=await Promise.all([
@@ -276,8 +275,8 @@ test("plain built HTML ZIP is labeled a candidate rather than falsely previewed"
     page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
   ]);
   await chooser.setFiles({name:"static.zip",mimeType:"application/zip",buffer:Buffer.from(file)});
-  await expect(page.getByText(/Framework: HTML statik/)).toBeVisible();
-  await expect(page.getByText(/ZIP-i nuk është ekzekutuar/)).toBeVisible();
+  await expect(page.getByText(/mbështet vetëm build Vite/)).toBeVisible();
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
 });
 
 test("ZIP Quick Preview displays built Vite HTML only in sandbox, and closes without saving",async ({page})=>{
