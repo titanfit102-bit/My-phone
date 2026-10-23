@@ -67,6 +67,55 @@ test("register, persist, edit, switch and remove projects", async ({page}) => {
   await expect(page.getByRole("button", {name: "Hap Demo Beta"})).toBeVisible();
 });
 
+
+test("A06: full registry rejects 101st, permits edit at 100, and refuses overflowing backup merge",async ({page})=>{
+  await mockApplication(page);
+  await page.goto("/");
+  await expect(page.getByText("Studio është gati.")).toBeVisible();
+  const seeded=Array.from({length:100},(_,i)=>({
+    id:"project-seed-"+i,name:"Seed "+i,github:GITHUB,web:MOCK_APP,native:""
+  }));
+  await page.evaluate(projects=>localStorage.setItem("my-phone-studio-projects-v1",JSON.stringify(projects)),seeded);
+  await page.reload();
+  await expect(page.getByRole("button",{name:"Hap Seed 0"})).toBeVisible();
+  await createProject(page,"Overflow 101");
+  await expect(page.getByRole("alert")).toContainText("maksimumi 100");
+  await expect(page.getByRole("button",{name:"Hap Overflow 101"})).toHaveCount(0);
+  await page.getByRole("button",{name:"×",exact:true}).click();
+  const [chooser]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Importo backup JSON"}).click()
+  ]);
+  const extra={format:"my-phone-studio-backup-v1",projects:[{
+    id:"project-overflow-import",name:"Overflow Backup",github:GITHUB,web:MOCK_APP,native:""
+  }]};
+  await chooser.setFiles({
+    name:"additional.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(extra))
+  });
+  await expect(page.getByText(/maksimumi 100/).first()).toBeVisible();
+  await expect(page.getByRole("button",{name:"Hap Overflow Backup"})).toHaveCount(0);
+  await page.getByRole("button",{name:"Hap Seed 0"}).click();
+  await page.getByRole("button",{name:"✎ Ndrysho"}).click();
+  await page.getByPlaceholder("P.sh. ILLYRIAN").fill("Edited at 100");
+  await page.getByRole("button",{name:"Ruaj ndryshimet"}).click();
+  await expect(page.getByRole("button",{name:"Hap Edited at 100"})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button",{name:"Hap Edited at 100"})).toBeVisible();
+  const count=await page.evaluate(()=>JSON.parse(localStorage.getItem("my-phone-studio-projects-v1")).length);
+  expect(count).toBe(100);
+});
+
+test("A07: long preview URL is rejected before creating a project",async ({page})=>{
+  await page.goto("/");
+  await addButton(page).click();
+  await page.getByPlaceholder("P.sh. ILLYRIAN").fill("Long URL");
+  await page.getByPlaceholder("https://github.com/owner/app").fill(GITHUB);
+  await page.getByPlaceholder("https://app.vercel.app").fill("https://preview.example.test/?q="+"a".repeat(8200));
+  await page.getByRole("button",{name:"Shto projektin"}).click();
+  await expect(page.getByRole("alert")).toContainText("8192 byte");
+  await expect(page.getByRole("button",{name:"Hap Long URL"})).toHaveCount(0);
+});
+
 test("reject invalid project URLs without saving a project", async ({page}) => {
   await page.goto("/");
   await addButton(page).click();

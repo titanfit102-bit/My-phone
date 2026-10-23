@@ -1,4 +1,16 @@
 export const STORAGE_KEY = "my-phone-studio-projects-v1";
+// Bound externally supplied preview URLs before they reach registry or backup.
+export const MAX_WEB_URL_BYTES = 8192;
+
+/** Portable UTF-8 byte count (including replacement bytes for lone surrogates). */
+export function utf8ByteLength(value) {
+  let bytes = 0;
+  for (const symbol of value) {
+    const cp = symbol.codePointAt(0);
+    bytes += cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4;
+  }
+  return bytes;
+}
 
 /** Store references to apps, NEVER binary APK files or credentials. */
 export function cleanGithubUrl(input) {
@@ -23,6 +35,8 @@ export function cleanWebUrl(input) {
   if (url.protocol !== "https:" || url.username || url.password || url.hash)
     throw Error("Përdor një adresë Web HTTPS pa kredenciale.");
   if (url.port && url.port !== "443") throw Error("Portet e personalizuara nuk lejohen në publikim.");
+  if (utf8ByteLength(url.href) > MAX_WEB_URL_BYTES)
+    throw Error("URL Web është tepër e gjatë (maksimumi 8192 byte).");
   return url.href;
 }
 export function cleanAppetizeEmbed(input) {

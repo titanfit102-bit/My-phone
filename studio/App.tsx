@@ -8,7 +8,7 @@ import ZipImportPanel from "./src/ZipImportPanel";
 import type {QuickPreview} from "./src/ZipImportPanel.web";
 import {newProject, chooseMode, freshWebUrl} from "./src/project-model";
 import {readProjectRegistry, writeProjectRegistry, serializeProjectBackup,
-  parseProjectBackup, MAX_BACKUP_BYTES} from "./src/project-storage";
+  parseProjectBackup, validateProjectList, MAX_BACKUP_BYTES} from "./src/project-storage";
 import {
   SYNC_POLL_MS, FALLBACK_REFRESH_MS, FETCH_TIMEOUT_MS, MAX_MANIFEST_BYTES,
   manifestUrl, parseManifest, readBoundedManifestText, initialSyncState, transitionSync, applyPendingSync, summarizeSync
@@ -132,6 +132,8 @@ export default function App() {
         const imported=parseProjectBackup(await file.text()) as Project[];
         const existing=new Set(projects.map(p=>p.id));
         const merged=[...projects,...imported.filter(p=>!existing.has(p.id))];
+        // Merge must also satisfy the same 100-item and backup-byte invariants.
+        validateProjectList(merged);
         const saved=writeProjectRegistry(browserStorage(),merged);
         if(!saved.ok)throw new Error("Importi nuk u ruajt; ndryshimet ekzistuese nuk u prekën.");
         writableRegistry.current=true;
@@ -247,6 +249,8 @@ export default function App() {
           new URL(value.web).origin === window.location.origin)
         throw new Error("Mos përdor adresën e vetë studios si demo: iframe në të njëjtin origin nuk lejohet.");
       const next=editing ? projects.map(p=>p.id===editing?value:p) : [...projects,value];
+      // Reject overflow/oversized backups before mutating session state.
+      validateProjectList(next);
       resetFreeze();
       invalidateZipContext();
       setProjects(next);setSelected(value.id);setMode(chooseMode(value,mode) as Mode);

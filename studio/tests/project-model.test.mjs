@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   cleanGithubUrl, cleanWebUrl, cleanAppetizeEmbed,
-  newProject, loadProjects, chooseMode, freshWebUrl
+  newProject, loadProjects, chooseMode, freshWebUrl, MAX_WEB_URL_BYTES, utf8ByteLength
 } from "../src/project-model.js";
 
 test("validate GitHub repository and reject injected paths", () => {
@@ -31,4 +31,18 @@ test("malformed and duplicate storage entries are ignored", () => {
   const p=newProject({name:"A",github:"https://github.com/a/b",web:"https://a.vercel.app",native:""},"project-123");
   assert.equal(loadProjects(JSON.stringify([p,p,{bad:true}])).length,1);
   assert.deepEqual(loadProjects("{oops"),[]);
+});
+
+test("A07: UTF-8 budget counts Unicode codepoints, including replacement for lone surrogate",()=>{
+  for (const text of ["ascii", "é", "😀", "a😀é", "\ud800"]) {
+    assert.equal(utf8ByteLength(text),new TextEncoder().encode(text).length);
+  }
+});
+test("A07: HTTPS preview URL is capped at 8192 normalized bytes",()=>{
+  const prefix="https://example.test/?q=";
+  const exact=prefix+"a".repeat(MAX_WEB_URL_BYTES-prefix.length);
+  assert.equal(cleanWebUrl(exact),exact);
+  assert.equal(utf8ByteLength(cleanWebUrl(exact)),MAX_WEB_URL_BYTES);
+  assert.throws(()=>cleanWebUrl(exact+"a"),/8192 byte/);
+  assert.throws(()=>cleanWebUrl(prefix+"😀".repeat(1000)+"a".repeat(5000)),/8192 byte/);
 });
