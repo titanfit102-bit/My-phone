@@ -11,7 +11,7 @@ import {readProjectRegistry, writeProjectRegistry, serializeProjectBackup,
   parseProjectBackup, MAX_BACKUP_BYTES} from "./src/project-storage";
 import {
   SYNC_POLL_MS, FALLBACK_REFRESH_MS, FETCH_TIMEOUT_MS, MAX_MANIFEST_BYTES,
-  manifestUrl, parseManifest, initialSyncState, transitionSync, applyPendingSync, summarizeSync
+  manifestUrl, parseManifest, readBoundedManifestText, initialSyncState, transitionSync, applyPendingSync, summarizeSync
 } from "./src/live-sync";
 
 type Project = {id:string;name:string;github:string;web:string;native:string};
@@ -185,16 +185,13 @@ export default function App() {
         if(response.status===404 || response.status===405) outcome={kind:"unsupported"};
         else if(response.status===401 || response.status===403) outcome={kind:"restricted"};
         else if(response.ok) {
-          const length = Number(response.headers.get("content-length")||"0");
-          if(length>MAX_MANIFEST_BYTES) outcome={kind:"unsupported"};
+          // Strict byte bound even for chunked responses without Content-Length.
+          const body = await readBoundedManifestText(response, MAX_MANIFEST_BYTES);
+          if(body===null) outcome={kind:"unsupported"};
           else {
-            const body = await response.text();
-            if(body.length>MAX_MANIFEST_BYTES) outcome={kind:"unsupported"};
-            else {
-              let parsed = null;
-              try {parsed=parseManifest(JSON.parse(body));} catch {}
-              outcome=parsed?{kind:"published",manifest:parsed}:{kind:"unsupported"};
-            }
+            let parsed = null;
+            try {parsed=parseManifest(JSON.parse(body));} catch {}
+            outcome=parsed?{kind:"published",manifest:parsed}:{kind:"unsupported"};
           }
         }
       } catch {
