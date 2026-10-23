@@ -5,6 +5,62 @@ export const FALLBACK_REFRESH_MS = 60000;
 export const FETCH_TIMEOUT_MS = 8000;
 export const MAX_MANIFEST_BYTES = 16384;
 
+/**
+ * Read build-info.json with an actual byte budget, including when Transfer-Encoding
+ * is chunked or Content-Length is missing/incorrect. A misleading Content-Length
+ * must not decide whether the body is safe. This does not claim a CPU/network
+ * quota for the remote server; it only bounds bytes copied into application JS.
+ *
+ * A null return is unsupported/malformed/oversized. An AbortError propagates so
+ * the existing poller reports "unreachable" rather than verified publication.
+ */
+export async function readBoundedManifestBody(response, abortController, maxBytes = MAX_MANIFEST_BYTES) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
+    throw new TypeError("Invalid manifest byte budget.");
+
+  const declared = response.headers.get("content-length");
+  // Reject impossible/oversized advertised sizes early, without trusting
+  // smaller values: Content-Length may count compressed transfer bytes.
+  if (declared !== null && (!/^\d+$/.test(declared.trim()) ||
+      !Number.isSafeInteger(Number(declared)) || Number(declared) > maxBytes)) {
+    abortController?.abort();
+    void response.body?.cancel().catch(() => {});
+    return null;
+  }
+  if (!response.body) {
+    abortController?.abort();
+    return null; // Fail closed; never call response.text() as a fallback.
+  }
+
+  const reader = response.body.getReader();
+  // Allocate only the maximum supported bytes, not the remote response size.
+  const collected = new Uint8Array(maxBytes);
+  let bytesRead = 0;
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array) || value.byteLength > maxBytes - bytesRead) {
+        // Stop the producer as soon as an oversized chunk arrives. Both abort
+        // and cancel are deliberate: the former stops the fetch/network, the
+        // latter closes a standalone stream in regression tests.
+        abortController?.abort();
+        void reader.cancel().catch(() => {});
+        return null;
+      }
+      collected.set(value, bytesRead);
+      bytesRead += value.byteLength;
+    }
+    try {
+      return new TextDecoder("utf-8", {fatal: true}).decode(collected.subarray(0, bytesRead));
+    } catch {
+      return null;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function manifestUrl(deployedAppUrl) {
   const base = new URL(deployedAppUrl);
   if (base.protocol !== "https:" || base.username || base.password)

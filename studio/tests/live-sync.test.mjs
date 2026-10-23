@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  manifestUrl, parseManifest, transitionSync, initialSyncState, applyPendingSync, summarizeSync,
-  SYNC_POLL_MS, FALLBACK_REFRESH_MS
+  manifestUrl, parseManifest, readBoundedManifestBody, transitionSync, initialSyncState, applyPendingSync, summarizeSync,
+  SYNC_POLL_MS, FALLBACK_REFRESH_MS, MAX_MANIFEST_BYTES
 } from "../src/live-sync.js";
 
 test("metadata URL targets application deployment without tokens", () => {
@@ -99,4 +99,91 @@ test("Network and authorization failures never force a frozen pending deployment
     assert.equal(failed.state.pendingRevision,"b");
     assert.equal(failed.state.displayedRevision,"a");
   }
+});
+
+
+const utf8 = text => new TextEncoder().encode(text);
+const jsonBody = count => '{"revision":"safe","padding":"' + "a".repeat(count) + '"}';
+
+test("A02: exactly 16384 UTF-8 bytes are accepted; 16385 are rejected", async () => {
+  const prefix = jsonBody(0);
+  const full = jsonBody(MAX_MANIFEST_BYTES - utf8(prefix).length);
+  assert.equal(utf8(full).length, MAX_MANIFEST_BYTES);
+  const good = await readBoundedManifestBody(new Response(full), new AbortController());
+  assert.equal(good, full);
+  assert.equal(parseManifest(JSON.parse(good)).revision, "safe");
+
+  const aborted = new AbortController();
+  const oversized = await readBoundedManifestBody(
+    new Response(full + "x", {headers: {"content-length": "1"}}), aborted);
+  assert.equal(oversized, null);
+  assert.equal(aborted.signal.aborted, true);
+});
+
+test("A02: chunked body without Content-Length stops on first oversized chunk and cancels", async () => {
+  let cancelled = false, pulled = 0;
+  const source = new ReadableStream({
+    pull(controller) {
+      pulled++;
+      if (pulled === 1) controller.enqueue(new Uint8Array(8192));
+      else if (pulled === 2) controller.enqueue(new Uint8Array(8193));
+      else throw Error("The reader consumed bytes after the 16KiB cap");
+    },
+    cancel() {cancelled = true;}
+  }, {highWaterMark: 0});
+  const abort = new AbortController();
+  const result = await readBoundedManifestBody(new Response(source), abort);
+  assert.equal(result, null);
+  assert.equal(abort.signal.aborted, true);
+  assert.equal(cancelled, true);
+  assert.equal(pulled, 2);
+});
+
+test("A02: a misleading small Content-Length cannot bypass the actual byte cap", async () => {
+  const bytes = utf8("a".repeat(MAX_MANIFEST_BYTES + 1));
+  let cancelled = false;
+  const stream = new ReadableStream({
+    start(ctrl) {ctrl.enqueue(bytes);},
+    cancel(){cancelled=true;}
+  }, {highWaterMark: 0});
+  const abort = new AbortController();
+  const body = await readBoundedManifestBody(
+    new Response(stream,{headers:{"content-length":"8"}}),abort);
+  assert.equal(body,null);
+  assert.equal(abort.signal.aborted,true);
+  assert.equal(cancelled,true);
+});
+
+test("A02: an advertised oversize or malformed Content-Length is denied before reading", async () => {
+  for (const length of [String(MAX_MANIFEST_BYTES + 1), "not-a-number", "9999999999999999999"]) {
+    let pulled = 0;
+    const body = new ReadableStream({pull(){pulled++;}}, {highWaterMark: 0});
+    const controller = new AbortController();
+    assert.equal(await readBoundedManifestBody(new Response(body,{headers:{"content-length":length}}),controller),null);
+    assert.equal(controller.signal.aborted,true);
+    assert.equal(pulled,0);
+  }
+});
+
+test("A02: multi-byte UTF-8 must count bytes, not JS string characters", async () => {
+  const shell=jsonBody(0),overhead=utf8(shell).length;
+  const bytesLeft=MAX_MANIFEST_BYTES-overhead;
+  const exact='{"revision":"safe","padding":"' + "é".repeat(bytesLeft / 2) + '"}';
+  assert.equal(utf8(exact).length,MAX_MANIFEST_BYTES);
+  assert.equal(await readBoundedManifestBody(new Response(exact),new AbortController()),exact);
+  const controller=new AbortController();
+  assert.equal(await readBoundedManifestBody(new Response(exact.replace('"padding":"','"padding":"é')),controller),null);
+  assert.equal(controller.signal.aborted,true);
+  assert.equal(await readBoundedManifestBody(new Response(new Uint8Array([0x7b,0x80,0x7d])),new AbortController()),null);
+});
+
+test("A02: missing streaming body fails closed; abort errors propagate to Live Sync", async () => {
+  const empty=new Response(null,{status:200});
+  const c=new AbortController();
+  assert.equal(await readBoundedManifestBody(empty,c),null);
+  assert.equal(c.signal.aborted,true);
+
+  const cause=new DOMException("aborted","AbortError");
+  const stream=new ReadableStream({pull(){throw cause;}},{highWaterMark:0});
+  await assert.rejects(readBoundedManifestBody(new Response(stream),new AbortController()),/aborted/);
 });
