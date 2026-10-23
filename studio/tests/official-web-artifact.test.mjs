@@ -75,6 +75,42 @@ test("internal PNG zlib corruption with recomputed chunk CRC fails closed",async
   const items=expoFiles();items[3]={...items[3],bytes:altered};
   await assert.rejects(buildSupportedWebPreview(makeZip(items)),/PNG Expo.*IDAT\/zlib/);
 });
+test("PNG with valid CRC and zlib but invalid scanline filter fails closed",async()=>{
+  const {inflateSync,deflateSync,crc32}=await import("node:zlib");
+  const original=new Uint8Array(png);
+  let start=8;
+  while(start<original.length){
+    const len=new DataView(original.buffer).getUint32(start,false);
+    if(String.fromCharCode(...original.subarray(start+4,start+8))==="IDAT"){
+      const inflated=inflateSync(original.subarray(start+8,start+8+len));
+      inflated[0]=5; // invalid PNG scanline filter (valid values are 0..4)
+      const compressed=deflateSync(inflated);
+      const resized=new Uint8Array(original.length-len+compressed.length);
+      resized.set(original.subarray(0,start),0);
+      resized.set(original.subarray(start+12+len),start+12+compressed.length);
+      resized.set([73,68,65,84],start+4);
+      resized.set(compressed,start+8);
+      const view=new DataView(resized.buffer);
+      view.setUint32(start,compressed.length,false);
+      view.setUint32(start+8+compressed.length,crc32(resized.subarray(start+4,start+8+compressed.length)),false);
+      const items=expoFiles();items[3]={...items[3],bytes:resized};
+      await assert.rejects(buildSupportedWebPreview(makeZip(items)),/filter të pavlefshëm/);
+      return;
+    }
+    start+=12+len;
+  }
+  assert.fail("Fixture does not have an IDAT chunk");
+});
+test("PNG RGB/RGBA profile rejects untested interlace and color-depth combinations",async()=>{
+  const {crc32}=await import("node:zlib");
+  for(const [position,newValue] of [[20,1],[16,16],[17,3]]){
+    const modified=new Uint8Array(png);modified[8+position]=newValue;
+    const view=new DataView(modified.buffer);
+    view.setUint32(29,crc32(modified.subarray(12,29)),false);
+    const items=expoFiles();items[3]={...items[3],bytes:modified};
+    await assert.rejects(buildSupportedWebPreview(makeZip(items)),/RGB\/RGBA 8-bit/);
+  }
+});
 test("Expo rejects an unreferenced PNG, unsupported files, and secret-like files",async()=>{
   for(const more of [
     {name:"dist/assets/assets/orphan.png",bytes:png},

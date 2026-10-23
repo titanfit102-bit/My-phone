@@ -244,11 +244,14 @@ function expoCandidateIndexes(all){
   });
 }
 async function verifyPngStructure(bytes){
+  // Conservative offline profile: bounded, non-interlaced, 8-bit RGB/RGBA PNG only.
+  // Other valid PNG formats are intentionally unsupported until separately tested.
   if(bytes.length<45 || ![137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v))
     reject("PNG Expo ka signature të pavlefshme.");
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
-  let offset=8,hasHeader=false,hasImage=false,hasEnd=false;
+  let offset=8,hasHeader=false,hasImage=false,hasEnd=false,idatClosed=false;
   const idat=[];
+  let expected=0,stride=0;
   while(offset+12<=bytes.length){
     const len=view.getUint32(offset,false);
     if(len>bytes.length-offset-12)reject("PNG Expo është i prerë.");
@@ -261,41 +264,50 @@ async function verifyPngStructure(bytes){
     if(type==="IHDR"){
       if(hasHeader||offset!==8||len!==13)reject("PNG Expo ka IHDR të pavlefshëm.");
       const width=view.getUint32(offset+8,false),height=view.getUint32(offset+12,false);
-      if(!width||!height||width*height>4194304)
-        reject("PNG Expo ka dimensione të pambështetura.");
-      if(bytes[offset+18]!==0||bytes[offset+19]!==0||bytes[offset+20]>1)
-        reject("PNG Expo ka format kompresimi të pambështetur.");
+      const depth=bytes[offset+16],color=bytes[offset+17];
+      if(!width||!height||width*height>4194304 || depth!==8 ||
+          (color!==2&&color!==6) || bytes[offset+18]!==0 ||
+          bytes[offset+19]!==0 || bytes[offset+20]!==0)
+        reject("PNG Expo kërkon RGB/RGBA 8-bit pa interlace dhe me dimensione të kufizuara.");
+      stride=1+width*(color===6?4:3);
+      expected=stride*height;
+      if(expected>16*1024*1024)reject("PNG Expo tejkalon kufirin e pikselëve.");
       hasHeader=true;
-    }
-    if(type==="IDAT"){
-      hasImage=true;
-      idat.push(bytes.subarray(offset+8,offset+8+len));
-    }
-    if(type==="IEND"){
-      if(len!==0||offset+12!==bytes.length)reject("PNG Expo ka IEND të pavlefshëm.");
+    }else if(type==="IDAT"){
+      if(!hasHeader||idatClosed)reject("PNG Expo ka renditje IDAT të pavlefshme.");
+      hasImage=true;idat.push(bytes.subarray(offset+8,offset+8+len));
+    }else if(type==="IEND"){
+      if(!hasImage||len!==0||offset+12!==bytes.length)
+        reject("PNG Expo ka IEND të pavlefshëm.");
       hasEnd=true;break;
+    }else{
+      if(!hasHeader || (type.charCodeAt(0)&32)===0)
+        reject("PNG Expo ka chunk kritik të pambështetur.");
+      if(hasImage)idatClosed=true;
     }
     offset+=12+len;
   }
   if(!hasHeader||!hasImage||!hasEnd)reject("PNG Expo është i paplotë.");
   if(typeof DecompressionStream!=="function")
     reject("Verifikimi i PNG kërkon DecompressionStream.");
-  // A correct PNG chunk CRC does not imply the zlib stream/Adler32 is valid.
-  // Stream inflation with a strict, bounded decoded-byte limit (no zip bombs).
   let reader;
   try{
     reader=new Blob(idat).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
-    let bytesDecoded=0;
+    let decoded=0;
     while(true){
       const {value,done}=await reader.read();
       if(done)break;
-      bytesDecoded+=value.length;
-      if(bytesDecoded>16*1024*1024)
-        reject("PNG Expo tejkalon kufirin e dekompresimit.");
+      if(decoded+value.length>expected)
+        reject("PNG Expo ka gjatësi rreshtash të pavlefshme.");
+      for(let i=0;i<value.length;i++){
+        if((decoded+i)%stride===0 && value[i]>4)
+          reject("PNG Expo ka filter të pavlefshëm në një rresht.");
+      }
+      decoded+=value.length;
     }
-    if(!bytesDecoded)reject("PNG Expo nuk ka pikselë të dekompresuar.");
+    if(decoded!==expected)reject("PNG Expo ka gjatësi rreshtash të pavlefshme.");
   }catch(error){
-    if(String(error).includes("tejkalon"))throw error;
+    if(/PNG Expo ka (gjatësi rreshtash|filter)/.test(String(error)))throw error;
     reject("PNG Expo ka IDAT/zlib të pavlefshëm.");
   }finally{
     try{await reader?.cancel();}catch{}
