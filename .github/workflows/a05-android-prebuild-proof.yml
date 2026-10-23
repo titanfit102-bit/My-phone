@@ -1,0 +1,46 @@
+name: A05 Android prebuild smoke (non-release)
+
+on:
+  push:
+    branches: ["feat/a05-android-prebuild-proof"]
+    paths:
+      - ".github/workflows/a05-android-prebuild-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    defaults:
+      run:
+        working-directory: studio
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Install pinned dependencies and preserve audit gate
+        run: |
+          npm ci --no-audit --no-fund
+          npm ls zod
+          node scripts/verify-security-audit.mjs
+      - name: Generate native Android project with Expo prebuild locally
+        run: |
+          node node_modules/expo/bin/cli prebuild --platform android --no-install --clean
+          test -f android/settings.gradle
+          test -f android/app/build.gradle
+          find android -maxdepth 2 -type f | head -35
+          echo "ANDROID PREBUILD PASS; generated Gradle source only, not a compiled APK."
+      - name: Confirm no GitHub repo is changed
+        run: |
+          echo "Runner changes are disposable. No commit, EAS, Android SDK compile, secrets, deploy or signing."
+          git status --short | head -25
