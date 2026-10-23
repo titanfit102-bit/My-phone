@@ -37,6 +37,7 @@ test("root-level official Expo Web export is explicitly recognized and prepared"
   const zip=makeZip(expoFiles(""));
   const inspection=inspectZip(zip,"root.zip");
   assert.equal(inspection.buildCandidateCount,1);
+  assert.equal(inspection.framework,"Expo Web / Metro (kandidat)");
   assert.deepEqual(inspection.buildCandidates,["index.html"]);
   const result=await buildSupportedWebPreview(zip,"root.zip");
   assert.equal(result.indexPath,"index.html");
@@ -53,6 +54,26 @@ test("tampered PNG internal CRC is rejected even if ZIP CRC has been recalculate
   const damaged=new Uint8Array(png);damaged[47]^=1;
   const files=expoFiles();files[3]={...files[3],bytes:damaged};
   await assert.rejects(buildSupportedWebPreview(makeZip(files)),/PNG Expo.*CRC/);
+});
+test("internal PNG zlib corruption with recomputed chunk CRC fails closed",async()=>{
+  const altered=new Uint8Array(png);
+  const view=new DataView(altered.buffer);
+  let offset=8,found=false;
+  while(offset+12<=altered.length){
+    const len=view.getUint32(offset,false);
+    const name=String.fromCharCode(...altered.subarray(offset+4,offset+8));
+    if(name==="IDAT"){
+      altered[offset+8+len-1]^=1; // break Adler32 without breaking PNG chunk framing
+      const {crc32}=await import("node:zlib");
+      const newCrc=crc32(altered.subarray(offset+4,offset+8+len));
+      view.setUint32(offset+8+len,newCrc,false);
+      found=true;break;
+    }
+    offset+=12+len;
+  }
+  assert.equal(found,true);
+  const items=expoFiles();items[3]={...items[3],bytes:altered};
+  await assert.rejects(buildSupportedWebPreview(makeZip(items)),/PNG Expo.*IDAT\/zlib/);
 });
 test("Expo rejects an unreferenced PNG, unsupported files, and secret-like files",async()=>{
   for(const more of [

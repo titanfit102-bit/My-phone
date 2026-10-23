@@ -243,11 +243,12 @@ function expoCandidateIndexes(all){
       [...all.keys()].some(p=>p.startsWith(prefix+"_expo/static/js/web/AppEntry-")&&p.endsWith(".js"));
   });
 }
-function verifyPngStructure(bytes){
+async function verifyPngStructure(bytes){
   if(bytes.length<45 || ![137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v))
     reject("PNG Expo ka signature të pavlefshme.");
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
   let offset=8,hasHeader=false,hasImage=false,hasEnd=false;
+  const idat=[];
   while(offset+12<=bytes.length){
     const len=view.getUint32(offset,false);
     if(len>bytes.length-offset-12)reject("PNG Expo është i prerë.");
@@ -257,8 +258,19 @@ function verifyPngStructure(bytes){
       crc=(crc>>>8)^crcTable[(crc^byte)&255];
     if(((crc^0xffffffff)>>>0)!==view.getUint32(offset+8+len,false))
       reject("PNG Expo ka CRC të pavlefshëm.");
-    if(type==="IHDR"){if(hasHeader||offset!==8||len!==13)reject("PNG Expo ka IHDR të pavlefshëm.");hasHeader=true;}
-    if(type==="IDAT")hasImage=true;
+    if(type==="IHDR"){
+      if(hasHeader||offset!==8||len!==13)reject("PNG Expo ka IHDR të pavlefshëm.");
+      const width=view.getUint32(offset+8,false),height=view.getUint32(offset+12,false);
+      if(!width||!height||width*height>4194304)
+        reject("PNG Expo ka dimensione të pambështetura.");
+      if(bytes[offset+18]!==0||bytes[offset+19]!==0||bytes[offset+20]>1)
+        reject("PNG Expo ka format kompresimi të pambështetur.");
+      hasHeader=true;
+    }
+    if(type==="IDAT"){
+      hasImage=true;
+      idat.push(bytes.subarray(offset+8,offset+8+len));
+    }
     if(type==="IEND"){
       if(len!==0||offset+12!==bytes.length)reject("PNG Expo ka IEND të pavlefshëm.");
       hasEnd=true;break;
@@ -266,6 +278,29 @@ function verifyPngStructure(bytes){
     offset+=12+len;
   }
   if(!hasHeader||!hasImage||!hasEnd)reject("PNG Expo është i paplotë.");
+  if(typeof DecompressionStream!=="function")
+    reject("Verifikimi i PNG kërkon DecompressionStream.");
+  // A correct PNG chunk CRC does not imply the zlib stream/Adler32 is valid.
+  // Stream inflation with a strict, bounded decoded-byte limit (no zip bombs).
+  let reader;
+  try{
+    reader=new Blob(idat).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+    let bytesDecoded=0;
+    while(true){
+      const {value,done}=await reader.read();
+      if(done)break;
+      bytesDecoded+=value.length;
+      if(bytesDecoded>16*1024*1024)
+        reject("PNG Expo tejkalon kufirin e dekompresimit.");
+    }
+    if(!bytesDecoded)reject("PNG Expo nuk ka pikselë të dekompresuar.");
+  }catch(error){
+    if(String(error).includes("tejkalon"))throw error;
+    reject("PNG Expo ka IDAT/zlib të pavlefshëm.");
+  }finally{
+    try{await reader?.cancel();}catch{}
+    try{reader?.releaseLock();}catch{}
+  }
 }
 export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"){
   const all=entries(buffer),candidates=expoCandidateIndexes(all);
@@ -308,7 +343,7 @@ export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"
     const bytes=await getBytes(buffer,all.get(path),MAX_ASSET_BYTES);
     total+=bytes.length;
     if(total>MAX_TOTAL_ASSET_BYTES)reject("Expo tejkalon kufirin e imazheve.");
-    verifyPngStructure(bytes);
+    await verifyPngStructure(bytes);
     code=code.replaceAll('uri:"'+ref+'"','uri:"data:image/png;base64,'+toBase64(bytes)+'"');
   }
   const policy="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'";

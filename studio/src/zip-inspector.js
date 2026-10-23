@@ -44,6 +44,10 @@ function classify(paths) {
   if (next) return {kind:"source",framework:"Next.js (indikacion)",previewReady:false};
   if (vite) return {kind:"source",framework:"Vite / React ose framework tjetër (indikacion)",previewReady:false};
   if (packageJson) return {kind:"source",framework:"JavaScript / Node (i pakonfirmuar)",previewReady:false};
+  // Structural hint only. Full Metro profile validation occurs in the renderer.
+  const expoWeb=web&&hasEnd("metadata.json")&&
+    normalized.some(p=>/(^|\/)_expo\/static\/js\/web\/appentry-[a-z0-9_-]+\.js$/.test(p));
+  if(expoWeb) return {kind:"static",framework:"Expo Web / Metro (kandidat)",previewReady:false};
   if (web) return {kind:"static",framework:"HTML statik / build kandidat",previewReady:false};
   if (hasPrefix("android") || hasEnd("gradlew")) return {kind:"native",framework:"Android source (indikacion)",previewReady:false};
   return {kind:"unknown",framework:"Strukturë e panjohur",previewReady:false};
