@@ -54,7 +54,14 @@
 - [IMPLEMENTED-IN-VALIDATION-BRANCH] `pof214/session_host.mjs`, `pof214/browser_proof.mjs` dhe workflow i veçantë në public validation repo; **nuk** janë në My-phone apo Production.
 - [VERIFIED] Token-i HMAC në segmentin e path-it kontrollohet nga asset host për çdo GET/HEAD, por është **bearer capability**; kopjimi i URL-së e anashkalon identitetin e viewer-it. Vetëm krijimi i URL-së lidhet me owner-in e mock-ut, jo çdo asset read.
 - [NO-GO] Kjo provë nuk autorizon përdorimin për projekte private, sesione të vërteta me shumë përdorues apo një origin HTTPS publik. Të 22 PASS përfshijnë një **test që demonstron dobësinë**, jo 22 prova sigurie private.
-- [NEXT] PoF2.15 dizajn read-only i identitetit dhe asset delivery, pastaj autorizim i ri specifik për eksperimentin pasues me kod.
+- [FOLLOW-UP] PoF2.15 u përfundua si analizë read-only më 2026-10-23. Identiteti i viewer-it në çdo kërkesë HTTP **NUK** është provuar. Mbetet PoF2.16 (test i autorizimit të ESM/cookies në browser vetëm me fixtures sintetike), që kërkon leje të re për kod/CI; mënyra private mbetet NO-GO.
+
+## PoF2.15 — konkluzioni arkitekturor (2026-10-23, vetëm analizë)
+- [VERIFIED SOURCE] PoF2.14 është i bazuar në bearer URL path: pa cookie/identity check per GET; copied URL me klient anonim kthen 200. Asnjë kod ose test PoF2.15 nuk u ekzekutua.
+- [VERIFIED WEB DOCS] MDN: `crossorigin="anonymous"` përdor credentials `same-origin`; `use-credentials` kërkon `include`, por cookie policies mund ta bllokojnë; CORS me kredenciale nuk pranon `Access-Control-Allow-Origin: *`. Storage Access API në iframe sandbox kërkon `allow-same-origin`, i papranueshëm sipas kufirit tonë për ZIP të panjohur. Origin `null` **nuk identifikon** përdoruesin.
+- [PROPOSED] Dy produkte të dallueshme: (A) public/explicitly shared prebuilt artifact me consent të qartë dhe origin të izoluar; (B) private owner-only, ku preferohet provë client-only/offline pa host publik. Shërbimi privat HTTPS multi-tenant mbetet i bllokuar.
+- [HYPOTHESIS TO TEST] Cookie HttpOnly, Secure, SameSite=None, Partitioned e lidhur me host unik mund të ndalojë URL-only replay në klient tjetër, por duhet verifikuar nëse module imports (përfshirë dynamic chunks) çojnë cookie nga frame opak dhe nëse `Origin: null` + CORS credentialed krijon rrugë exfiltration. Pa provë të këtyre dy kushteve **NO-GO**.
+- [NEXT] PoF2.16 mund të jetë vetëm experiment i ri sintetik pas autorizimit të shprehur për kod/CI; krahaso edhe repack offline në memory (kufizim teknik i patestuar). Shih MASTER_HANDOFF kapitulli 9. Nuk u ndryshuan skedarë jashtë dokumentacionit continuity.
 
 ## Rregulli i vazhdimësisë dhe autorizimit
 - [AUTHORIZED CONTINUOUSLY] Krijim/përditësim **vetëm** i docs/CURRENT_STATE.md dhe docs/MASTER_HANDOFF.md në branch **docs/continuity-checkpoints**, pas ngjarjeve materiale të verifikuara. Ruaj referencat SHA dhe statusin real. Përditëso me commit, kontrollo fetch-in nga GitHub, raporto commit-in. Mos e quaj saved nëse ruajtja dështon.
@@ -62,5 +69,5 @@
 - Nuk ka automatikisht monitorim në background; përditësimi ndodh gjatë sesioneve/ekzekutimeve të autorizuara.
 - Çdo bisedë e re: hap **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/CURRENT_STATE.md** dhe **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/MASTER_HANDOFF.md**. Lexo të dy; mos kërko vetëm në main. Verifiko head aktual, PR, CI e prod; përditëso checkpoint-in për çdo drift; vazhdo hapin më poshtë.
 
-**Next action:** PoF2.15: audit i opsioneve të autorizimit **të lidhur me identitetin e viewer-it për çdo asset**, pa ekspozuar cookies/token në ESM opaque iframe. Zgjidh trust model + harto prova kundër URL replay / cache / cross-tenant. Për krijim kodi/workflow në repo validimi kërko autorizim të veçantë; deri atëherë read-only. Mbaj Vite private Production NO-GO.
-**Continuity status:** checkpoint i parë; konsiderohet I RUAJTUR vetëm pasi GitHub commit + readback + Draft PR dokumentacioni të verifikohen.
+**Next action:** PoF2.16 [PROPOSED, NOT RUN]: kërko autorizim për testim sintetik të credentialed ESM dynamic imports në iframe opak me cookie të host-it HttpOnly/Partitioned, dy identitete, URL copy/replay, cache dhe revokim, plus kontrollin e ekspozimit CORS Origin:null; testim alternativ client-only/offline për private multi-chunk. Deri atëherë **NO-GO** për Vite private/production, vetëm analizë read-only.
+**Continuity status:** checkpoint aktiv. Përditësim PoF2.15 në pritje të konfirmimit GitHub (commit + readback + Draft PR #18).

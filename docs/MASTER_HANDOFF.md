@@ -193,6 +193,47 @@ Kërkesa për PoF2.13 design:
 
 **[NEXT PROPOSED, NOT IMPLEMENTED] PoF2.15:** analizo në mënyrë read-only një trust boundary të ri për identitetin viewer ↔ each asset ↔ browser ESM sandbox opaque. Krahason mekanizma të shërbimit të kontrolluar nga browser/edge me autentikim per-request, alternative service-proxy që nuk ekspozon creds në kodi të preview-it, explicit user sharing mode vs private mode, CORS/cookie/ESM feasibility dhe replay/caching. Gate i ardhshëm: provë në Chromium ku **stolen URL alone cannot access any HTML, JS, dynamic chunk, CSS, image**, me dy tenants + revoke/expiry, pa dobësuar iframe sandbox. Për implementim kodi në test repo kërko autorizim të veçantë; për dokumentim continuity në branch-in docs autorizimi ekziston.
 
+### PoF2.15 — Architecture decision and explicit private-preview stop gate (2026-10-23)
+
+**STATUS [DESIGN ANALYSIS COMPLETED — NOT IMPLEMENTED/NOT TESTED].** This is the next design review after PoF2.14. All actual GitHub code evidence still points to PoF2.14 commit \`24ed3f5142fc935d696edd666e0406d9c81adc8e\`; no new Vite code, GitHub Actions, infrastructure or production changes were authorized or made for PoF2.15.
+
+**Technical baseline [VERIFIED FROM SOURCE].** \`pof214/session_host.mjs\` verifies only the HMAC-bearing session path, active state, manifest and digest on GET/HEAD; the owner mock controls capability *issuance*. An unauthenticated HTTP client replaying the same URL can download assets. Therefore the existing host has no independent authenticated-viewer identity, cannot be used for private uploads, and client CSP/frame-ancestors cannot prevent direct HTTP GET.
+
+**External browser references [WEB-DOCUMENTED, NOT TESTED HERE].**
+- MDN \`crossorigin\` mode: \`anonymous\` means \`same-origin\` credentials; \`use-credentials\` requests \`include\`. https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/crossorigin
+- MDN CORS: credentialed requests do not work with ACAO \`*\`; cookie policies, especially in third-party contexts, still apply. https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS
+- MDN Storage Access API: sandboxed iframe needs \`allow-storage-access-by-user-activation\`, \`allow-scripts\` and **\`allow-same-origin\`** to request access. This conflicts with our opaque-origin security invariant; do not use that API as the solution. https://developer.mozilla.org/en-US/docs/Web/API/Storage_Access_API/Using
+- MDN CHIPS: \`Partitioned\` cookies use site-based partition keys; they are not in themselves proof of identity or proof of how nested ESM requests send credentials. https://developer.mozilla.org/en-US/docs/Web/Privacy/Guides/Third-party_cookies/Partitioned_cookies
+- Opaque-origin sandbox requests serialize as \`Origin: null\`; unrelated opaque documents also serialize as \`null\`. Treat Origin:null as **untrusted**. Do not combine credentialed ACAO:null with private assets merely to get imports working; any solution needs independently demonstrated resistance to same-browser cross-origin data reading.
+
+**Product mode split [PROPOSED; USER HAS NOT APPROVED RELEASE].**
+1. \`PUBLIC_OR_EXPLICITLY_SHARED_STATIC\`: user affirmatively opts to share a *prebuilt*, nonsecret static output; isolated per-session HTTPS origin, bounded manifest, CSP, allowed resource types, expiry/revoke, clear disclosure that anyone who receives a shared URL can obtain bundled code. The experiment proves parts of rendering, not global-host production operations. Never silently classify ZIP as public.
+2. \`PRIVATE_OWNER_LOCAL_FIRST\`: prefer an in-browser processing/rewriting proof that does **not upload** the asset archive to a public service and can keep an opaque sandbox (possibly a bounded static one-bundle conversion or a reviewed local chunk resolver). Feasibility across Vite dynamic imports, CSS/fonts, \`import.meta\`, source maps and memory limits is **UNKNOWN / NOT TESTED**. Repacking arbitrary unknown JS is not yet an authorized feature.
+3. \`PRIVATE_REMOTE_AUTHENTICATED\`: blocked pending a proof of identity-bound access on **each** HTML, JS, lazy import, CSS, PNG/font response with no bearer credential embedded in copyable URLs and with an opaque iframe. Avoid creating a production cloud host while this gate is unresolved.
+
+**Candidate designs and adversarial evaluation [PROPOSED].**
+
+| Candidate | Possible benefit | Critical limitation | Decision |
+|---|---|---|---|
+| Signed capability URL, including per-asset short lived signatures | Works with dynamic ESM without custom headers | Any copied URL with active signature remains a bearer credential; replay, logs and referrer leakage | **REJECT for private** (PoF2.14 evidence) |
+| Host-only \`HttpOnly; Secure; SameSite=None; Partitioned\` cookie, viewer bound to server-side tenant/session | URL alone might become insufficient, cookies not accessible through \`document.cookie\` | Need to test cross-origin ESM credentials propagation from opaque origin, third-party blocking, cache, navigation, Firefox/WebKit and dangerous credentialed \`Origin: null\` grants | **TEST HYPOTHESIS ONLY; NO-GO until proven** |
+| Storage Access API | Could permit third-party cookies | Requires \`allow-same-origin\` in sandbox; breaks approved opaque-origin invariant | **REJECT under present sandbox** |
+| Private auth gateway / trusted parent proxy | Can enforce viewer identity before any asset reaches browser | Native \`import()\` does not add parent authorization headers; proxying \`src\`/chunks via rewriter or trusted resolver remains unproven; a \`postMessage\` bridge is a sensitive capability | **RESEARCH ONLY, not a workaround** |
+| Entirely browser-local prebuilt artifact resolver | No upload/shared web URL to steal; no additional cloud cost | Complex Vite chunk/asset mapping, strict no-network CSP and memory bounds; must never execute untrusted content in the Studio origin | **PREFERRED PRIVATE DIRECTION FOR RESEARCH** |
+| Separately hosted public/shared static preview | Supports normal HTTP ESM import and cross-origin sandbox, with explicit informed sharing | Code is intentionally available to whoever has public access; NOT private identity-bound access | **CAN BE CONSIDERED with explicit consent and separate security gates** |
+
+**PoF2.16 acceptance test plan [NOT RUN, REQUIRES NEW CODE/CI AUTHORIZATION].**
+- Construct only synthetic two-tenant fixtures and a disposable browser host; test sessions Alice/A and Bob/B with the *same* asset filenames but disjoint byte content/digests, and copied URLs.
+- Test a new browser context *without* an identity cookie: GET/HEAD/index/.js/lazy-.js/CSS/PNG/font must return no private bytes even if it knows a live URL; test both non-browser HTTP client and browser navigation. Count distinct results, do not use "22 PASS" for negative vulnerability demonstration as a security GO.
+- Test the **same browser but unauthorized top-level site**: attempts to iframe, fetch or read asset with opaque \`Origin: null\` must fail, including any \`ACAO: null; ACAC: true\` configuration that can expose private responses. Watch actual request Cookie/Origin/Sec-Fetch-* headers; never rely on Origin as an identity.
+- Authorized browser must render official Vite index, initial module, nested lazy module HTTP 200 and PNG/CSS. Verify whether \`crossorigin=use-credentials\` applies to lazy ESM and whether cookie is attached under both normal/private browsing, cookie restriction, and at least Chromium+Firefox before considering compatibility.
+- Verify close, logout, expiry, revocation, tenant-switch, cache reload, CDN/proxy caches, conditional GET, \`HEAD\`, \`Range\`, stale tab, concurrent requests and deletion. Server-side controls must apply to *every* asset; \`Cache-Control: no-store\` is necessary but not sufficient.
+- Evaluate browser-local alternative separately with the same Vite fixture, but without any public upload; reject external JS, secrets, unsupported \`import.meta\`, source maps and unbounded memory. No \`allow-same-origin\` and no provider tokens in preview code.
+- Preserve exact fixtures, lockfiles, SHAs, network HAR with redacted credentials and PASS/FAIL/NOT RUN per gate. A documented browser break or security failure is a valid research result, not reason to weaken the sandbox.
+- **GO only to a further restricted synthetic prototype** if URL-only replay is denied while ESM dynamic imports work under a safe origin/credential policy. **NO-GO** for private production until HTTPS/site provisioning, browser matrix, auth revocation, privacy, erasure, abuse limits, and user release approval pass. A screenshot or green workflow is not evidence for all these gates.
+
+**Decision record:** No change to release status. PoF2.14 is real proof of **a replayable bearer credential**, PoF2.15 is only an architecture audit. Next step PoF2.16 requires user permission for *specific code/test edits* in validation repository; ongoing authorization covers only the two continuity documents. Continue other authorized read-only work meanwhile.
+
 ## 10. Autorizimet e qëndrueshme dhe kufijtë absolutë
 
 **[USER AUTHORIZED]**:
