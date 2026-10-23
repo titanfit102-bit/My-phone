@@ -1,0 +1,62 @@
+name: A05 Zod compatibility probe (non-release)
+
+on:
+  push:
+    branches: ["feat/a05-zod-dependency-probe"]
+    paths:
+      - ".github/workflows/a05-zod-dependency-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Install exact baseline lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Inspect real upstream dependency constraints
+        run: |
+          npm ls zod
+          npm view @expo/cli@57.0.32 dependencies.zod
+          npm view zod@4.6.7 version
+          node --input-type=module <<'NODE'
+          import {spawnSync} from "node:child_process";
+          const a=spawnSync("npm",["audit","--omit=dev","--json"],{encoding:"utf8",timeout:60000,maxBuffer:12000000});
+          if(a.error||!a.stdout) throw Error("npm audit unreachable");
+          const json=JSON.parse(a.stdout);
+          if(json.error) throw Error("npm audit registry error: "+JSON.stringify(json.error));
+          for(const pkg of ["zod","@expo/cli","expo"]){
+            const v=json.vulnerabilities?.[pkg];
+            console.log("BASELINE",pkg,JSON.stringify({severity:v?.severity,range:v?.range,fixAvailable:v?.fixAvailable,via:v?.via?.map(x=>typeof x==="string"?x:({name:x.name,url:x.url,range:x.range,severity:x.severity}))}));
+          }
+          NODE
+      - name: Trial Zod 4.6.7 override in temporary runner checkout ONLY
+        run: |
+          npm pkg set overrides.zod=4.6.7
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          npm ls zod
+          node scripts/verify-security-audit.mjs
+          npm run check:config
+          npm run typecheck
+          npm run export:web
+      - name: Check temporary override with Chromium desktop and mobile
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Assert no remote repository mutation is possible
+        run: |
+          echo "PROBE ONLY: checkout modified locally, permissions.contents=read; no commit, no deployment, no release."
