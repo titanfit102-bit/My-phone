@@ -17,6 +17,14 @@
 
 Latest verified app main bf1b65e72760dca5c8dd2fb92e9c79b65f77c6df; PR17 head efa551885a9edf8e85e596da1e25c9994a71b284; PoF2.16 head 4c5232c1ca2e0cb82e06916ccdd10c3756293059. Continuity branch docs/continuity-checkpoints, Draft PR18. Always recheck live refs.
 
+### Audit stabilization — implementation checkpoint (2026-10-23)
+
+**[IMPLEMENTED ONLY IN DRAFT BRANCHES]** A02 has two overlapping, independently tested implementations: PR19 `fix/a02-bounded-live-sync-reader` SHA `01e6527e917486c1eea83bf97250241d205b9ca3`, base main, CI 40014826947 SUCCESS; and PR20 `feat/p1-live-sync-bounded-manifest-reader` SHA `8d5d526a45c0840b7f3af95e17721bb91d5eebb7`, base PR17, CI 40017617907 SUCCESS with 106 Node PASS, 41 Playwright PASS and 3 SKIP. They fix the same P1 byte-bound manifest issue by different approaches; PR20 adds 8 Node tests and 1 Playwright case (desktop/mobile). **Do not merge both blindly.** No PR19 edits were performed in this continuation.
+
+**[IMPLEMENTED IN BRANCH, PENDING FINAL E2E VERIFICATION]** A01 Draft PR21 `feat/p1-zip-import-lifecycle-invalidation` SHA `4e87eed2f860a846c643301a55186333318c5689`, stacked onto PR20, addresses stale parent/child ZIP callback and busy cancellation. CI run 40018511996 was running at initial checkpoint. Its parent-side synchronous epoch and child unmount/cancel ticket prevent stale completion from mounting a preview after a project/mode switch. Newly added deferred File.arrayBuffer browser test must PASS before marking verified. It does not interrupt synchronous CPU-bound parse. No merge, Production deployment or new official Expo ZIP CLI test was run for this SHA.
+
+**[RELEASE/ROADMAP]** Reconcile duplicate A02 PRs and validate A01 exact SHA; then A06/A07 integrity, A04/A08 evidence, A03/A09 negative and accessibility tests. Private remote Vite stays NO-GO; PoF2.17 remains proposed. Maintain separate SOURCE/TESTED/RELEASED statuses. This checkpoint does not create a new authorization to merge or modify unrelated branches.
+
 ## 1. Identiteti, vizioni dhe kufijtë e produktit
 
 **[DECIDED]** Produkti quhet **My Phone Expo Studio**: një hapësirë qendrore me telefon virtual që lejon përdoruesin të menaxhojë referenca projektesh, të hapë Web previews ose Android cloud previews, dhe për profile të mbështetura të importojë ZIP prebuilt për shikim të përkohshëm. Ambicia finale është një rrjedhë e besueshme ZIP/GitHub → preview sa më automatik, në browser/telefon, pa instalime të detyrueshme në PC dhe pa shpenzime të papritura. Ambicia nuk është e njëjtë me mbështetje universale aktuale.
