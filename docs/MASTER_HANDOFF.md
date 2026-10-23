@@ -234,6 +234,28 @@ Kërkesa për PoF2.13 design:
 
 **Decision record:** No change to release status. PoF2.14 is real proof of **a replayable bearer credential**, PoF2.15 is only an architecture audit. Next step PoF2.16 requires user permission for *specific code/test edits* in validation repository; ongoing authorization covers only the two continuity documents. Continue other authorized read-only work meanwhile.
 
+### PoF2.16 — test real Chromium HTTPS/CHIPS për Vite ESM, jo garanci Production (2026-10-23)
+
+**[VERIFIED, SYNTHETIC]** Branch i dedikuar në https://github.com/titanfit102-bit/my-phone-pof-validation/tree/feat/pof216-partitioned-cookie-esm-probe , head 4c5232c1ca2e0cb82e06916ccdd10c3756293059. Workflow final [40001595784](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/40001595784): SUCCESS, official vite build në ubuntu-24.04 + Chromium. Evidence artifact SHA-256 25bc182eacdfc9ed318b13f610759678ecfb9cd5dfa4dddec7f281e481691b62, ZIP CRC OK, file results/pof216-experiment.json me **13 PASS, 1 PASS_EXPECTED_DENIAL, 1 BLOCKED_OR_UNPROVEN**. SUCCESS është statusi i ekzekutimit të eksperimenti, **jo** aprovimi i sigurisë private.
+
+**Test design:** host i besuar https://127.0.0.1 dhe dy origin-e sintetike https://127.0.0.2/.3, certifikatë self-signed e gjeneruar dhe shkatërruar në runner; test browser ignoreHTTPSErrors=true. Browser context kishte cookie të injektuar nëpërmjet Playwright, Secure, HttpOnly, SameSite=None, Partitioned (nuk u implementua provider identiteti ose proces login). Serveri kontrollonte cookie sintetik për çdo file GET; bllokon GET pa cookie (401), TTL/revoke test. Artefaktet dhe emrat e requesteve u regjistruan pa cookie values/URL token.
+
+**Evidence positive:**
+- Browser pranoi cookie Partitioned dhe kërkesa e autorizuar HTML u shërbye 200.
+- Rruga standarde Vite stylesheet/module me atributet anonymous fillimisht shkaktoi 401 për CSS. Pasi u përdor crossorigin=use-credentials në link stylesheet dhe në script module, u vërtetuan HTML / initial JS / dynamic lazy chunk / CSS / PNG me 200 dhe cookie të vlefshëm. Origin i module import ishte 'null', por host lejoi credentialed CORS.
+- React UI renderoi, klikimi lazy import ndryshoi state-in, imazhi u dekodua dhe iframe mbeti opak (parent DOM + storage denied).
+- URL e kopjuar nga një fresh browser context pa cookie mori 401. Prova e modalitetit të CSS/modulit anonymous u refuzua siç pritej. Revokimi refuzoi lexim të ri.
+- Një modul minimal Blob me import() u ngarkua brenda iframe-it opak, por **NUK** është proof se Vite multi-chunk build mund të shërbehet plotësisht offline nga ZIP.
+
+**Evidence negative / paqartësi:**
+- Testi i sulmuesit me sibling iframe me origin opak nuk arriti të lexojë kodin, por log-u tregoi se kërkesa e sulmuesit **nuk arriti te serveri** (originReached=false). Kjo mund të jetë CSP/browser policy; nuk demonstron se kontrolli i identitetit i reziston çdo iframe-i tjetër. Me ACAO:null dhe ACAC:true, `Origin:null` është i përbashkët për shumë dokumente opake, jo identitet i sigurt për tenant; konfigurimi duhet konsideruar i rrezikshëm.
+- Cookie ishte injektuar nga harness, nuk ishte sesi real browser login. Për test siguri private duhen real HTTPS cert trusted, Firefox/WebKit, cross-site attacker pages, cache invalidation, range/HEAD, cookie restrictions, logout/revocation të plotë dhe kontroll identiteti jo vetëm cookie presence.
+- Run historik [40000874160](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/40000874160) kishte cookie fixture format invalid. Run [40001072563](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/40001072563) dhe [40001365624](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/40001365624) treguan CSS 401. Vetëm [40001595784](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/40001595784) kaloi plotësisht renderimin e assets në Chromium.
+
+**Decision / release gate:** **PRIVATE PRODUCTION NO-GO**. Credentialed ESM/CSS është teknikisht i mundur në këtë fixture, por konfidencialiteti ndaj iframe-ve të tjera opake, identiteti real dhe vetitë cross-browser nuk janë provuar. Nuk vendoset cookie auth në Studio pa security review. Eksperimenti nuk ka ndryshuar My-phone, PR #12–18, main ose Vercel.
+
+**NEXT PROPOSED PoF2.17:** Prioritizo një provë **browser-local** për të hapur zyrtarisht Vite multi-chunk ZIP në iframe opak pa ngarkim në server dhe pa cookies; provë e ndarë për static assets, import.meta, dynamic ESM, blob origin/storage partition, CSP/CPU/memory, failure/no-network. Kjo ul nevojën për shërbim privat me tenant auth dhe përputhet me objektivin pa kosto/ngarkime. Vetëm me autorizim të shprehur për branch/kod/test të ri. Nëse remote private mode mbetet i domosdoshëm, duhet test më i fortë same-browser sibling fetch që arrihet realisht në asset server dhe provohet authZ për çdo request.
+
 ## 10. Autorizimet e qëndrueshme dhe kufijtë absolutë
 
 **[USER AUTHORIZED]**:
