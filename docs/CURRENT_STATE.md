@@ -28,6 +28,7 @@
 - [VERIFIED] PR #17, [PoF2.10 run 39948253179](https://github.com/titanfit102-bit/My-phone/actions/runs/39948253179): **2/2 Playwright desktop/mobile PASS** për importin në UI të Studio-s të një ZIP Expo Web të përpiluar realisht, synthetic fixture; 4 file në build.
 - [VERIFIED] PoF2.9, [GitHub Actions run 39940412584](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/39940412584): CLI Expo/Vite real + **11/11** prova browser PASS.
 - [VERIFIED] PoF2.12, [run 39968191033](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/39968191033): **21/21** prova PASS për Vite multi-chunk në tre hoste loopback të përkohshme; dynamic module HTTP 200, render, PNG/CSS, sandbox opak, dy sesione, revokim dhe SHA. Branch i validimit: feat/pof212-vite-isolated-origin, commit a1ac3801578172b6667caf781702bd79e79a1ea7.
+- [VERIFIED, SYNTHETIC ONLY] PoF2.14, [GitHub Actions run 39984373498](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/39984373498): **22/22 browser/HTTP checks PASS**, official Vite 7.3.7; distinct tenant/session origins, signed HMAC bearer path, valid ESM dynamic chunk, cross-session denial, revocation, expiry and digest tamper rejection. Validation branch **feat/pof214-capability-authz-negative-proof** head **24ed3f5142fc935d696edd666e0406d9c81adc8e**. Evidence ZIP SHA-256: **b656c847e021318063974f30cedb01a13e3637e3a644db2d1de98af42cc63c44**. **CRITICAL: copied bearer URL is replayable by an unauthenticated client (proved)**; identity-bound authorization per asset FAIL / NOT IMPLEMENTED; private Production **NO-GO**.
 - [LIMIT] PoF2.12 nuk provon autorizim real ndërmjet përdoruesve, HTTPS, tenant separation, shërbim publik apo integrimin Vite multi-chunk brenda Studio-s.
 - [SECURITY] CI e PR #17 kishte 15 High / 3 Moderate / 0 Critical audit paths; përjashtimet e njohura nuk janë korrigjuar dhe dokumenti i triage kërkon rivlerësim deri 2026-11-21.
 
@@ -38,7 +39,7 @@
 - [NOT RELEASED] PR #12–17, përfshirë Expo ZIP adapter, janë pa merge. Asnjë përqindje globale përfundimi nuk është matur me denominator dhe release gates të plotë.
 
 ## Bllokimet / hapi që duhet rifilluar
-1. **PoF2.13 DESIGN REVIEW [COMPLETED — ANALYSIS ONLY, 2026-10-23]:** u analizua autoriteti për create/authorize/assets/revoke/expire/delete dhe boshllëku i PoF2.12: serveri i prototipit nuk autentikon shkarkimin e çdo asset-i. Kontrata dhe testet e propozuara janë në MASTER_HANDOFF §9. **Nuk është implementuar / testuar authZ**; next PoF2.14 test me fixture sintetike kërkon autorizim për kod.
+1. **PoF2.14 [COMPLETED — SYNTHETIC PROOF, SECURITY NO-GO]:** testuam mekanizëm bearer session-capability për requests Vite me 2 tenants dhe ngarkim ESM; 22/22 PASS. U demonstrua mangësia kritike: URL e kopjuar lexohet pa identitetin e pronarit. Kjo është rezultat negativ i sigurisë; authZ identity-bound dhe për projekte private mbeten të paprovuara/paimplementuara. Shiko MASTER_HANDOFF §9.
 2. Auditimi i sigurisë i PR #17: kërcënimet nga ZIP-e të panjohura, kufijtë CPU/memorie, dependencies high, release gates.
 3. Për Vite multi-chunk: provë e ardhshme HTTPS/authorization me fixtures sintetike, pastaj implementim në PR të veçantë **vetëm me leje**.
 4. Merge/order/release i PR-ve #12–17 dhe verifikim real Vercel Production kërkojnë leje të veçantë.
@@ -49,11 +50,17 @@
 - [BLOCKED] iframe sandbox opak + dynamic ESM + CORS pa kredenciale paraqet konflikt me cookie/header-based auth. Nuk është verifikuar zgjidhje e sigurt. Refuzo private Vite deployment derisa alternativa të jetë provuar në browser.
 - [NEXT] PoF2.14 prova e përcaktuar me 2 aktorë, dy sesione, revoke/expire, URL leak, requests pa kredenciale; kërkon **leje të re për kod/runner**. Vetëm handoff docs kanë autorizim të vazhdueshëm.
 
+## PoF2.14 — status dhe kufiri i provës (2026-10-23)
+- [IMPLEMENTED-IN-VALIDATION-BRANCH] `pof214/session_host.mjs`, `pof214/browser_proof.mjs` dhe workflow i veçantë në public validation repo; **nuk** janë në My-phone apo Production.
+- [VERIFIED] Token-i HMAC në segmentin e path-it kontrollohet nga asset host për çdo GET/HEAD, por është **bearer capability**; kopjimi i URL-së e anashkalon identitetin e viewer-it. Vetëm krijimi i URL-së lidhet me owner-in e mock-ut, jo çdo asset read.
+- [NO-GO] Kjo provë nuk autorizon përdorimin për projekte private, sesione të vërteta me shumë përdorues apo një origin HTTPS publik. Të 22 PASS përfshijnë një **test që demonstron dobësinë**, jo 22 prova sigurie private.
+- [NEXT] PoF2.15 dizajn read-only i identitetit dhe asset delivery, pastaj autorizim i ri specifik për eksperimentin pasues me kod.
+
 ## Rregulli i vazhdimësisë dhe autorizimit
 - [AUTHORIZED CONTINUOUSLY] Krijim/përditësim **vetëm** i docs/CURRENT_STATE.md dhe docs/MASTER_HANDOFF.md në branch **docs/continuity-checkpoints**, pas ngjarjeve materiale të verifikuara. Ruaj referencat SHA dhe statusin real. Përditëso me commit, kontrollo fetch-in nga GitHub, raporto commit-in. Mos e quaj saved nëse ruajtja dështon.
 - [NOT AUTHORIZED] Ndryshim i skedarëve të tjerë, kodit, PR #12–17, main, production, repos të tjera, merge, deploy, secrets, shpenzime ose cloud infra. Këto kërkojnë miratim të veçantë.
 - Nuk ka automatikisht monitorim në background; përditësimi ndodh gjatë sesioneve/ekzekutimeve të autorizuara.
 - Çdo bisedë e re: hap **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/CURRENT_STATE.md** dhe **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/MASTER_HANDOFF.md**. Lexo të dy; mos kërko vetëm në main. Verifiko head aktual, PR, CI e prod; përditëso checkpoint-in për çdo drift; vazhdo hapin më poshtë.
 
-**Next action:** kërko miratim për PoF2.14 — test/prototip sintetik të autorizimit per-asset + ESM/CORS në mjedis të izoluar, pa Production; deri atëherë vetëm analizë read-only dhe kontrolle të statusit të PR-ve.
+**Next action:** PoF2.15: audit i opsioneve të autorizimit **të lidhur me identitetin e viewer-it për çdo asset**, pa ekspozuar cookies/token në ESM opaque iframe. Zgjidh trust model + harto prova kundër URL replay / cache / cross-tenant. Për krijim kodi/workflow në repo validimi kërko autorizim të veçantë; deri atëherë read-only. Mbaj Vite private Production NO-GO.
 **Continuity status:** checkpoint i parë; konsiderohet I RUAJTUR vetëm pasi GitHub commit + readback + Draft PR dokumentacioni të verifikohen.

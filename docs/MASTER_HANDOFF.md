@@ -181,6 +181,18 @@ Kërkesa për PoF2.13 design:
 **Definition of Done PoF2.13 (ANALYSIS ONLY):** Threat model, lifecycle, authZ design, evidence/limitations, alternatives and explicit next approval boundary janë të dokumentuara. Kjo nuk zgjidh automatikisht konfliktin teknik të credential-free ESM me user-specific access control.
 
 
+### PoF2.14 — provë sintetike e capability dhe demonstrim negativ sigurie (2026-10-23)
+
+**[VERIFIED — SYNTHETIC]** Repository eksperimental: https://github.com/titanfit102-bit/my-phone-pof-validation, branch \`feat/pof214-capability-authz-negative-proof\`, commit \`24ed3f5142fc935d696edd666e0406d9c81adc8e\`. [Actions run 39984373498](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/39984373498): \`SUCCESS\`, 22/22 browser/HTTP checks PASS, official Vite v7.3.7. Evidence artifact ZIP SHA256 \`b656c847e021318063974f30cedb01a13e3637e3a644db2d1de98af42cc63c44\`, 4 file ZIP dhe CRC PASS të kontrolluara.
+
+**[IMPLEMENTED ONLY IN PUBLIC VALIDATION BRANCH]** \`pof214/session_host.mjs\` dhe \`pof214/browser_proof.mjs\`. Dy tenants sintetikë (Alice/A, Bob/B), hoste fizike loopback 127.0.0.2 dhe .3, parent 127.0.0.1. Çelës HMAC i rastësishëm gjenerohet vetëm në runtime, jo në source. Control plane mock lejon owner-in për të marrë URL sesioni; çdo GET/HEAD i skedarëve HTML/JS/CSS/PNG kërkon HMAC bearer-capability në path, TTL, revokim dhe hash immutable. U provua ngarkimi zyrtar Vite React, CSS, PNG, lazy ESM chunk HTTP 200, sandbox origin null, bllokim i DOM/storage prind, cross-session fetch, tamper, HEAD/Range, revoke, expiry.
+
+**[CRITICAL SECURITY NEGATIVE, VERIFIED]** Një klient anonim që kopjon URL-në e plotë të sesionit merr HTTP 200: capability URL është bearer token i ripërdorshëm. Kjo nuk është autorizim i bazuar në identitet për çdo asset. Kontrolli i owner-it gjatë minting, HMAC, CSP, frame-ancestors, URL e vështirë për t'u gjetur dhe CORS **nuk** e zgjidhin këtë. 22/22 PASS do të thotë se eksperimenti demonstron si funksionon mekanizmi **dhe** si dështon ndaj replay. Statusi i artifact-it të provës raporton \`PASS_WITH_CRITICAL_SECURITY_LIMITATION\`, \`identityBoundPerAsset: FAIL_NOT_IMPLEMENTED\`, \`privateProduction: NO_GO\`.
+
+**[NO-GO]** Mos e përdor hostin PoF2.14 për kode private, multi-user, tenantë realë, public HTTPS ose Production. Nuk ka autentikim real nga serveri për identitetin e çdo GET/ESM chunk, TLS/origin lifecycle, tenant database, kufij operacionalë enterprise ose garantim privacy. URL bearer në path mund të dalë në log-e, share/copy, analizë browser ose proxy. Kjo është mangësi e arkitekturës, jo thjesht test që mungon.
+
+**[NEXT PROPOSED, NOT IMPLEMENTED] PoF2.15:** analizo në mënyrë read-only një trust boundary të ri për identitetin viewer ↔ each asset ↔ browser ESM sandbox opaque. Krahason mekanizma të shërbimit të kontrolluar nga browser/edge me autentikim per-request, alternative service-proxy që nuk ekspozon creds në kodi të preview-it, explicit user sharing mode vs private mode, CORS/cookie/ESM feasibility dhe replay/caching. Gate i ardhshëm: provë në Chromium ku **stolen URL alone cannot access any HTML, JS, dynamic chunk, CSS, image**, me dy tenants + revoke/expiry, pa dobësuar iframe sandbox. Për implementim kodi në test repo kërko autorizim të veçantë; për dokumentim continuity në branch-in docs autorizimi ekziston.
+
 ## 10. Autorizimet e qëndrueshme dhe kufijtë absolutë
 
 **[USER AUTHORIZED]**:
