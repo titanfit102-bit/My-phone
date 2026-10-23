@@ -1,0 +1,55 @@
+name: A05 Expo native CLI compatibility proof (non-release)
+
+on:
+  push:
+    branches: ["feat/a05-native-cli-compat-proof"]
+    paths:
+      - ".github/workflows/a05-native-cli-proof.yml"
+      - "studio/package.json"
+      - "studio/package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  native-compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: studio
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Verify reproducible installation
+        run: |
+          npm ci --no-audit --no-fund
+          npm ls zod
+          node scripts/verify-security-audit.mjs
+      - name: Native config parsing with Expo CLI and forced Zod 4
+        run: |
+          node node_modules/expo/bin/cli config --type public --json > native-config-probe.json
+          node -e "const x=require('./native-config-probe.json');if(x.slug!=='my-phone-studio'||!x.platforms.includes('android')||!x.platforms.includes('ios'))process.exit(1);console.log('Expo native Android/iOS config parse PASS')"
+      - name: Produce Android JavaScript bundle without cloud build
+        run: |
+          node node_modules/expo/bin/cli export --platform android --output-dir native-proof-android
+          find native-proof-android -maxdepth 3 -type f | head -25
+          test -n "$(find native-proof-android -type f | head -1)"
+      - name: Produce iOS JavaScript bundle without Apple tooling
+        run: |
+          node node_modules/expo/bin/cli export --platform ios --output-dir native-proof-ios
+          find native-proof-ios -maxdepth 3 -type f | head -25
+          test -n "$(find native-proof-ios -type f | head -1)"
+      - name: Verify no generated native proof assets were committed
+        run: |
+          test -z "$(git status --porcelain --untracked-files=no)"
+          echo "NON-RELEASE. JavaScript bundle/config only. No APK, IPA, signing, EAS, emulator or deployment."
