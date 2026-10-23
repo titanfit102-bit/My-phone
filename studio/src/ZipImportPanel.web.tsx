@@ -1,4 +1,4 @@
-import React,{useRef,useState} from "react";
+import React,{useEffect,useRef,useState} from "react";
 import {View,Text,Pressable,StyleSheet} from "react-native";
 import {inspectZip,MAX_ZIP_BYTES} from "./zip-inspector";
 import {buildSupportedWebPreview} from "./quick-preview";
@@ -11,6 +11,8 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
   const [active,setActive]=useState(false);
   const [assessment,setAssessment]=useState<ReturnType<typeof assessZipInspection>|null>(null);
   const epoch=useRef(0);
+  // Parent changes remount this panel; no pending file read can publish afterward.
+  useEffect(()=>()=>{++epoch.current;},[]);
   const pick=()=>{
     const picker=document.createElement("input");
     picker.type="file";
@@ -58,7 +60,7 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
     <Pressable accessibilityRole="button" onPress={pick} disabled={busy} style={styles.button}>
       <Text style={styles.buttonText}>{busy?"Po lexohet ZIP...":"↑ Ngarko ZIP"}</Text>
     </Pressable>
-    {active&&<Pressable accessibilityRole="button" onPress={close} style={styles.close}>
+    {(active||busy)&&<Pressable accessibilityRole="button" onPress={close} style={styles.close}>
       <Text style={styles.closeText}>✕ Mbyll Quick Preview</Text>
     </Pressable>}
     {!!message&&<Text style={styles.status}>{message}</Text>}
