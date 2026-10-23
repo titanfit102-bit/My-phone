@@ -1,0 +1,48 @@
+name: A05 materialize Zod v4 trial lockfile (non-release)
+
+on:
+  push:
+    branches: ["feat/a05-zod4-compat-candidate"]
+    paths:
+      - ".github/workflows/a05-zod4-materialize.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Generate deterministic candidate lock and verify before any write token is exposed
+        run: |
+          npm pkg set overrides.zod=4.6.7
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+          npm ls zod
+          node scripts/verify-security-audit.mjs
+          npm run check:config
+          npm run typecheck
+          npm run export:web
+      - name: Commit only dependency manifest and lockfile on isolated branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git -C .. add -- studio/package.json studio/package-lock.json
+          test "$(git -C .. diff --cached --name-only | wc -l)" -eq 2
+          git -C .. config user.name "github-actions[bot]"
+          git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C .. -c core.hooksPath=/dev/null commit -m "chore(A05): materialize npm-validated Zod 4.6.7 candidate override"
+          AUTH="$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          git -C .. -c http.extraheader="AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/feat/a05-zod4-compat-candidate
