@@ -38,10 +38,16 @@
 - [NOT RELEASED] PR #12–17, përfshirë Expo ZIP adapter, janë pa merge. Asnjë përqindje globale përfundimi nuk është matur me denominator dhe release gates të plotë.
 
 ## Bllokimet / hapi që duhet rifilluar
-1. **PoF2.13 (në radhë, jo i përfunduar):** përcakto mekanizmin e autorizimit të sesioneve dhe izolimit të artifacts Vite (create/authorize/access/renew/revoke/expire/delete; CORS/CSP, referer/URL leak, cookies, access logs, abuse limits). Fillimisht analizë dhe test-plan read-only; pa kod/shërbim cloud pa autorizim të ri.
+1. **PoF2.13 DESIGN REVIEW [COMPLETED — ANALYSIS ONLY, 2026-10-23]:** u analizua autoriteti për create/authorize/assets/revoke/expire/delete dhe boshllëku i PoF2.12: serveri i prototipit nuk autentikon shkarkimin e çdo asset-i. Kontrata dhe testet e propozuara janë në MASTER_HANDOFF §9. **Nuk është implementuar / testuar authZ**; next PoF2.14 test me fixture sintetike kërkon autorizim për kod.
 2. Auditimi i sigurisë i PR #17: kërcënimet nga ZIP-e të panjohura, kufijtë CPU/memorie, dependencies high, release gates.
 3. Për Vite multi-chunk: provë e ardhshme HTTPS/authorization me fixtures sintetike, pastaj implementim në PR të veçantë **vetëm me leje**.
 4. Merge/order/release i PR-ve #12–17 dhe verifikim real Vercel Production kërkojnë leje të veçantë.
+
+## PoF2.13 — përfundimi i analizës, jo i implementimit
+- [VERIFIED] PoF2.12 pof212/isolated_host.mjs i shërben një skedari të manifestit kur sesioni është aktiv; kontrollon metodat, path, SHA-256, kuotën e kërkesave, TTL dhe revokimin, por **nuk ka owner/viewer authZ në çdo GET/HEAD**.
+- [DECISION PROPOSED, NOT APPROVED AS PRODUCTION] Nda control plane të autentikuar nga data plane i skedarëve; çdo asset kërkon provë të pavarur të së drejtës së aksesit, edhe nested ESM/CSS/font. Origin/capability URL i fshehtë vetëm nuk përbën autorizim të mjaftueshëm për projekte private.
+- [BLOCKED] iframe sandbox opak + dynamic ESM + CORS pa kredenciale paraqet konflikt me cookie/header-based auth. Nuk është verifikuar zgjidhje e sigurt. Refuzo private Vite deployment derisa alternativa të jetë provuar në browser.
+- [NEXT] PoF2.14 prova e përcaktuar me 2 aktorë, dy sesione, revoke/expire, URL leak, requests pa kredenciale; kërkon **leje të re për kod/runner**. Vetëm handoff docs kanë autorizim të vazhdueshëm.
 
 ## Rregulli i vazhdimësisë dhe autorizimit
 - [AUTHORIZED CONTINUOUSLY] Krijim/përditësim **vetëm** i docs/CURRENT_STATE.md dhe docs/MASTER_HANDOFF.md në branch **docs/continuity-checkpoints**, pas ngjarjeve materiale të verifikuara. Ruaj referencat SHA dhe statusin real. Përditëso me commit, kontrollo fetch-in nga GitHub, raporto commit-in. Mos e quaj saved nëse ruajtja dështon.
@@ -49,5 +55,5 @@
 - Nuk ka automatikisht monitorim në background; përditësimi ndodh gjatë sesioneve/ekzekutimeve të autorizuara.
 - Çdo bisedë e re: hap **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/CURRENT_STATE.md** dhe **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/MASTER_HANDOFF.md**. Lexo të dy; mos kërko vetëm në main. Verifiko head aktual, PR, CI e prod; përditëso checkpoint-in për çdo drift; vazhdo hapin më poshtë.
 
-**Next action:** PoF2.13 read-only authorization/session-isolation design dhe threat model; pa ndryshim kodi pa miratim.
+**Next action:** kërko miratim për PoF2.14 — test/prototip sintetik të autorizimit per-asset + ESM/CORS në mjedis të izoluar, pa Production; deri atëherë vetëm analizë read-only dhe kontrolle të statusit të PR-ve.
 **Continuity status:** checkpoint i parë; konsiderohet I RUAJTUR vetëm pasi GitHub commit + readback + Draft PR dokumentacioni të verifikohen.

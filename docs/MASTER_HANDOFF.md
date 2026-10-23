@@ -131,7 +131,7 @@ Nuk ka përqindje universale të verifikuar: fazat, weight dhe kosto-t ende nuk 
 
 ## 9. NEXT ACTION e saktë: PoF2.13
 
-**Status në krijimin e handoff-it: [PROPOSED, NOT STARTED].** Vazhdo **analizën** e mekanizmit të autorizimit të preview sessions Vite; mos krijo shërbim ose kod pa lejen përkatëse. Bazohu te pof212/isolated_host.mjs dhe pof212/browser_proof.mjs (branch experimental) dhe dokumenti docs/POF211_ISOLATED_VITE_ARTIFACT_ORIGIN_ARCHITECTURE.md.
+**Status më 2026-10-23: [DESIGN ANALYSIS COMPLETED; IMPLEMENTATION NOT STARTED].** U lexua pof212/isolated_host.mjs dhe browser_proof.mjs (branch eksperimental); draft i modelit dhe test-plan i authZ u formulua më poshtë. Nuk është krijuar asnjë shërbim i ri, nuk është shtuar kod dhe nuk ka prova reale të autentikimit të skedarëve.
 
 Kërkesa për PoF2.13 design:
 1. Përcakto aktorët (owner, viewer, host, artifact service, attacker), nivelin e besimit dhe ndarjen e privileges.
@@ -143,7 +143,43 @@ Kërkesa për PoF2.13 design:
 7. Krijo acceptance matrix PASS/FAIL/NOT RUN, provë e propozuar pa kosto të paautorizuara; vendim GO/NO-GO për prototipin e ardhshëm.
 8. Nëse ka vendim të rëndësishëm të verifikuar/autor. dokumentoje te dy skedarët continuity; nëse vetëm propozim, regjistro statusin [PROPOSED] dhe shëno çfarë kërkon leje.
 
-**Definition of Done PoF2.13:** Threat model, lifecycle, authZ design, evidence/limitations, alternatives and explicit next approval boundary. Pa pretendim implementimi.
+**PoF2.13 design findings (2026-10-23; [PROPOSED] unless otherwise marked):**
+
+**Evidence & core security bug gap.** [VERIFIED FROM CODE] PoF2.12 pof212/isolated_host.mjs kufizon GET/HEAD, file allowlist, SHA-256, TTL 10 min, request budget 200, deny unsafe paths, origin loopback, CSP/CORS dhe revoke. Megjithatë çdo kërkesë brenda sesionit aktiv për një file në manifest kthen skedarin **pa kontroll të owner/viewer identity / authorization**. GET direkt nga një klient tjetër nuk bllokohet nga frame-ancestors; CSP e iframe-it ndalon disa dalje nga kodi, por nuk është mbrojtje e aksesit HTTP. Testi PoF2.12 provoi izolim të kufizuar, jo siguri të dhënash private. Mos e ngrit këtë host direkt në internet.
+
+**Aktorë dhe trust boundaries:**
+- Owner (përdorues i autentikuar) vendos cilin artifact të vet do të publikojë për preview dhe për kë; viewer mund të ketë leje të kufizuar; attacker mund të marrë URL, të dërgojë cross-origin requests, të enumerë skedarët ose të modifikojë build-in.
+- Control plane (trusted API i ndarë nga browser), me identity/session, autorizon create/renew/revoke/status dhe lidh tenantId ↔ artifact digest ↔ viewer grants.
+- Artifact service/data plane (origin i veçantë HTTPS, jo Studio origin) shërben vetëm content immutable i manifestit, me autorizim për **çdo** index/script/chunk/CSS/font/image/route. Kodit të preview-it nuk i jepen credentials të Studio-s, API keys ose privileged postMessage.
+- Public GitHub fixture/test runner është territor tjetër besimi nga prodhimi dhe nga repository të përdoruesve; mos kopjo private source aty.
+
+**Model reference, vetëm propozim (schema, jo API e implementuar):**
+- Session: random server-generated sessionId, tenantId, ownerSubject, allowedViewerSubjects, artifactSha256, immutableManifestSha256, revision, uniqueIsolatedOrigin, state, createdAt, expiresAt, revokedAt, deletionDueAt, requestQuota, byteQuota, auditCorrelationId, policyVersion.
+- Grant: owner/viewer/role, resource-set (only known artifact revision), action (create/view/revoke), notBefore/expiresAt, revocation epoch; least privilege.
+- Server-side mandatory checks per request: session ACTIVE, tenant/role authorization, not expired/revoked, path from immutable manifest, unchanged digest/MIME, no credential leaks, no cross-session access, quotas, redacted log; failures 401/403/404/410 as appropriate with no path enumeration leak.
+- States: NEW → VALIDATED → AUTHORIZED → ACTIVE → REVOKING → REVOKED or EXPIRED → DELETING → DELETED. Only allowed transitions with atomic revocation; no reuse of origin/session token after deletion. Revoke must stop **future** HTTP reads and close iframe in Studio; it cannot retroactively erase bytes/code already downloaded into a browser session.
+
+**Teknika e vështirë e ESM dhe e autentikimit:**
+- Preview-i i sigurt mban sandbox=allow-scripts **pa** allow-same-origin. Dokumenti ka origin opak/null. Dynamic module requests dhe fontet përdorin rrugë fizike HTTP dhe CORS; [REFERENCE] MDN shpjegon se kërkesat cross-origin pa konfigurim specifik të credentials nuk dërgojnë cookies. Prandaj cookie i kontroll-plane nuk mund të supozohet se autentikon automatikisht importet ESM.
+- CORS ACAO:* pa credential është i përshtatshëm vetëm kur serveri ka zgjidhur në mënyrë të pavarur autorizimin. Nuk është autentikim. Mos pasqyro Origin:null si principal të besuar.
+- **Option A**: cookies partitioned/credentialed për artifact host; test browser cross-origin ESM me origin opak; nuk është provuar dhe nuk duhet supozuar. Mos shto allow-same-origin si workaround.
+- **Option B**: signed scoped per-asset paths / immutable rewrites; teorikisht kompatibël me importet, por krijon rrezik bearer tokens në URLs, logs, browser history dhe copy/paste (RFC 6750). Për preview privat është **NO-GO pa proof kundër leak/replay dhe revokim per-asset**.
+- **Option C**: per-session origin/unguessable hostname capability; lehtëson izolimin por emri sekret është bearer capability, jo user-based authorization. NO-GO si mbrojtje e vetme për private artifacts.
+- **Option D**: browser-controlled trusted proxy / edge enforcement me auth për çdo resource pa ekspozuar token në JavaScript/URL; kandidati i preferuar për studim, por duhet të demonstrojë teknologjikisht si autentikohen nested dynamic chunks në sandbox opak. Pa atë provë **nuk ka design GO**.
+
+**PoF2.14 acceptance plan (NOT RUN, requires scoped authorization for code):**
+1. Dy owners/tenants A/B, dy sessions, dy immutable manifests me të njëjtin filename; prova pa auth dhe replay të owner B në session A duhet të kthejnë zero bytes (me status të kontrolluar).
+2. Valid owner/viewer render, relative ESM imports/chunks HTTP 200, CSS/font/image decode, iframe origin null dhe parent DOM/storage denial; browser desktop/mobile dhe të paktën një engine alternativ përpara release.
+3. Cross-tenant script/image/module requests, copied URLs, expired token, logout, revoke, reuse pas delete → FAIL CLOSED edhe në reload, cache, HEAD/range/revalidation.
+4. CSP frame-src/ancestors, Origin:null handling, referrer no-referrer, no cookie leakage, CSRF, injection, redirect, DNS/same-site confusion, CORS response headers të testuara në rrjet.
+5. Request/byte/time quotas, oversized files/ZIP bombs, malicious paths, compressed content bombs, static host tamper SHA, abusive concurrency dhe atomic revoke/delete; audit logs të redaktuara dhe no secrets.
+6. PASS/FAIL/NOT RUN veçmas për authZ server-side, egress, frontend, storage, privacy, accessibility dhe cost. Ruaj manifestet SHA/lockfiles/run links; vetëm fixtures sintetike dhe resources pa pagesë të re.
+7. **GO only for further constrained PoC** kur authZ per asset + dynamic chunks kalojnë bashkë; **NO-GO for private production** derisa të plotësohen authentication, HTTPS origin lifecycle, CSP/CORS, privacy, quota, erasure, review, release approval.
+
+**Vendim i këshilluar i PoF2.13:** [BLOCKED] Përdorimi i artifacts private në një public Vite preview host. [PROPOSED] Ndërto PoF2.14 vetëm pas autorizimit të ri për ndryshim kodi / ekzekutim të kufizuar. PoF2.12 mbetet prova e vetme reale Vite HTTP; PoF2.13 përfundoi vetëm si analizë/propozim, pa testim të kodit të ri.
+
+**Definition of Done PoF2.13 (ANALYSIS ONLY):** Threat model, lifecycle, authZ design, evidence/limitations, alternatives and explicit next approval boundary janë të dokumentuara. Kjo nuk zgjidh automatikisht konfliktin teknik të credential-free ESM me user-specific access control.
+
 
 ## 10. Autorizimet e qëndrueshme dhe kufijtë absolutë
 
