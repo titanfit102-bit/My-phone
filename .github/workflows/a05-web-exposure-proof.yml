@@ -1,0 +1,75 @@
+name: A05 web runtime bundle provenance (non-release)
+
+on:
+  push:
+    branches: ["feat/a05-web-bundle-exposure-proof"]
+    paths: [".github/workflows/a05-web-exposure-proof.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: studio
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Install exact lockfile and verify security gate
+        run: |
+          npm ci --no-audit --no-fund
+          npm ls zod
+          node scripts/verify-security-audit.mjs
+      - name: Export full Web source maps only into disposable runner folder
+        run: |
+          node node_modules/expo/bin/cli export --platform web --source-maps --output-dir /tmp/my-phone-a05-source-map-probe
+      - name: Inventory build-time versus client-bundle modules
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import path from "node:path";
+          const root="/tmp/my-phone-a05-source-map-probe";
+          let maps=0;
+          const all=new Set();
+          function scan(directory){
+            for(const item of fs.readdirSync(directory,{withFileTypes:true})){
+              const p=path.join(directory,item.name);
+              if(item.isDirectory())scan(p);
+              else if(item.isFile() && p.endsWith(".map")){
+                maps++;
+                const stat=fs.statSync(p);
+                if(stat.size>100*1024*1024)throw new Error("Unexpected enormous sourcemap");
+                const sm=JSON.parse(fs.readFileSync(p,"utf8"));
+                if(!Array.isArray(sm.sources))throw new Error("Missing sourcemap sources");
+                for(const x of sm.sources)all.add(String(x));
+              }
+            }
+          }
+          scan(root);
+          if(!maps||!all.size)throw new Error("No client Web source-map evidence");
+          const matches=needle=>[...all].filter(s=>s.includes(needle));
+          const zod=matches("/node_modules/zod/");
+          const expoCli=matches("/node_modules/@expo/cli/");
+          console.log(JSON.stringify({
+            claim:"This is ONLY modules listed in Web source maps; not all potential dynamic runtime paths",
+            maps,sources:all.size,zodSourceCount:zod.length,expoCliSourceCount:expoCli.length,
+            zodExample:zod.slice(0,6),cliExample:expoCli.slice(0,6)
+          },null,2));
+          if(zod.length||expoCli.length)throw new Error("Zod or Expo CLI code found in Web client sourcemaps; review required");
+          NODE
+      - name: Confirm no checked-in files modified
+        run: |
+          git diff --exit-code
+          echo "No release claim. No bundle upload, no npm override change, no merge, no deployment."
