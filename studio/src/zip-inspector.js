@@ -107,6 +107,12 @@ export function inspectZip(arrayBuffer, filename="archive.zip") {
   const result=classify(normalized.paths);
   // Detect build entries independently of framework; GitHub source ZIPs may include dist/.
   const candidates=normalized.paths.filter(path=>/(^|\/)(dist|build|out)\/index\.html$/i.test(path));
+  // A root-level official Expo export has index.html + Metro metadata and AppEntry.
+  // Do not classify an arbitrary root index.html as runnable.
+  if(candidates.length===0 && normalized.paths.includes("index.html") &&
+      normalized.paths.includes("metadata.json") &&
+      normalized.paths.some(path=>/^_expo\/static\/js\/web\/AppEntry-[A-Za-z0-9_-]+\.js$/.test(path)))
+    candidates.push("index.html");
   return {
     filename,
     buildCandidateCount:candidates.length,

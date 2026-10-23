@@ -1,7 +1,7 @@
 import React,{useRef,useState} from "react";
 import {View,Text,Pressable,StyleSheet} from "react-native";
 import {inspectZip,MAX_ZIP_BYTES} from "./zip-inspector";
-import {buildQuickPreview} from "./quick-preview";
+import {buildSupportedWebPreview} from "./quick-preview";
 import {assessZipInspection} from "./engine-core";
 
 export type QuickPreview={filename:string;srcDoc:string;warning:string;serial:number};
@@ -27,12 +27,12 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
         inspection=info;
         if(ticket!==epoch.current)return;
         setAssessment(assessZipInspection(info));
-        const built=await buildQuickPreview(bytes,file.name);
+        const built=await buildSupportedWebPreview(bytes,file.name);
         if(ticket!==epoch.current)return;
         onPreview({filename:built.filename,srcDoc:built.srcDoc,warning:built.warning,serial:1});
         setAssessment(assessZipInspection(info,{status:"prepared"}));
         setActive(true);
-        setMessage(info.count+" skedarë · Web build u gjet. Quick Preview u hap në telefon.");
+        setMessage(info.count+" skedarë · Web build u përgatit për Quick Preview në telefon.");
       }catch(e){
         if(ticket!==epoch.current)return;
         const failure=e instanceof Error?e.message:"ZIP nuk mund të shfaqet.";
@@ -54,7 +54,7 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>QUICK PREVIEW NGA ZIP</Text>
-    <Text style={styles.description}>Ngarko ZIP-in e shkarkuar nga GitHub. Nëse përmban dist/index.html, një JS bundle dhe deri në katër CSS lokale, përgatitet përkohësisht në ekranin e telefonit; backend-i nuk niset.</Text>
+    <Text style={styles.description}>Ngarko ZIP-in e shkarkuar nga GitHub. Mbështet Web build-e të kufizuara: Vite me një JS bundle ose Expo Metro single bundle me PNG lokale. Vite me dynamic chunks kërkon origin HTTP të izoluar dhe ende nuk hapet offline. Backend-i nuk niset.</Text>
     <Pressable accessibilityRole="button" onPress={pick} disabled={busy} style={styles.button}>
       <Text style={styles.buttonText}>{busy?"Po lexohet ZIP...":"↑ Ngarko ZIP"}</Text>
     </Pressable>

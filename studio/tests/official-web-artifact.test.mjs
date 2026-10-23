@@ -1,0 +1,86 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {makeZip} from "./zip-fixtures.mjs";
+import {inspectZip} from "../src/zip-inspector.js";
+import {buildExpoWebArtifactPreview,buildSupportedWebPreview} from "../src/quick-preview.js";
+
+const png=Uint8Array.from(Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR42mPQKXj3H4QZYAwAVWgKJasJe+IAAAAASUVORK5CYII=",
+  "base64"));
+const asset="/assets/assets/pixel.abc123.png";
+const html='<!doctype html><html><head><title>PoF Expo</title></head><body><div id="root"></div>'+
+  '<script src="/_expo/static/js/web/AppEntry-123abc.js" defer></script></body></html>';
+const main='const image={uri:"'+asset+'"};document.getElementById("root").textContent="Expo ZIP";'+
+  'window.__testImage=image.uri;';
+function expoFiles(prefix="dist/"){
+  return [
+    {name:prefix+"index.html",content:html},
+    {name:prefix+"metadata.json",content:'{"version":0,"bundler":"metro","fileMetadata":{}}'},
+    {name:prefix+"_expo/static/js/web/AppEntry-123abc.js",content:main},
+    {name:prefix+"assets/assets/pixel.abc123.png",bytes:png}
+  ];
+}
+test("official Expo single-bundle profile is prepared offline with opaque CSP and checked PNG",async()=>{
+  const zip=makeZip(expoFiles(),{});
+  const result=await buildSupportedWebPreview(zip,"expo.zip");
+  assert.equal(result.profile,"expo-metro-single-offline");
+  assert.equal(result.indexPath,"dist/index.html");
+  assert.equal(result.localAssetCount,1);
+  assert.match(result.srcDoc,/Expo ZIP/);
+  assert.match(result.srcDoc,/data:image\/png;base64,/);
+  assert.doesNotMatch(result.srcDoc,/uri:"\/assets\/assets\//);
+  assert.match(result.srcDoc,/default-src 'none'/);
+  assert.match(result.srcDoc,/connect-src 'none'/);
+  assert.doesNotMatch(result.srcDoc,/allow-same-origin/);
+});
+test("root-level official Expo Web export is explicitly recognized and prepared",async()=>{
+  const zip=makeZip(expoFiles(""));
+  const inspection=inspectZip(zip,"root.zip");
+  assert.equal(inspection.buildCandidateCount,1);
+  assert.deepEqual(inspection.buildCandidates,["index.html"]);
+  const result=await buildSupportedWebPreview(zip,"root.zip");
+  assert.equal(result.indexPath,"index.html");
+});
+test("GitHub wrapper for Expo dist is handled",async()=>{
+  const result=await buildSupportedWebPreview(makeZip(expoFiles("project-main/dist/")));
+  assert.equal(result.indexPath,"project-main/dist/index.html");
+});
+test("two possible HTML entrypoints do not silently choose one",async()=>{
+  await assert.rejects(buildSupportedWebPreview(makeZip([...expoFiles(),{
+    name:"build/index.html",content:"second"}])),/disa HTML|HTML entrypoints/i);
+});
+test("tampered PNG internal CRC is rejected even if ZIP CRC has been recalculated",async()=>{
+  const damaged=new Uint8Array(png);damaged[47]^=1;
+  const files=expoFiles();files[3]={...files[3],bytes:damaged};
+  await assert.rejects(buildSupportedWebPreview(makeZip(files)),/PNG Expo.*CRC/);
+});
+test("Expo rejects an unreferenced PNG, unsupported files, and secret-like files",async()=>{
+  for(const more of [
+    {name:"dist/assets/assets/orphan.png",bytes:png},
+    {name:"dist/.env.production",content:"DO_NOT_EXPOSE=1"},
+    {name:"dist/_expo/static/js/web/another.js",content:"console.log('extra')"}
+  ]){
+    await assert.rejects(buildSupportedWebPreview(makeZip([...expoFiles(),more])),/pambështetur|papërdorura/i);
+  }
+});
+test("Expo fails closed on unknown metadata/unsupported HTML",async()=>{
+  const bad=expoFiles();bad[1]={...bad[1],content:'{"version":0,"bundler":"other","fileMetadata":{}}'};
+  await assert.rejects(buildSupportedWebPreview(makeZip(bad)),/nuk mbështetet/);
+  const multiple=expoFiles();multiple[0]={...multiple[0],content:html+'<script src="https://cdn.example.test/other.js"></script>'};
+  await assert.rejects(buildSupportedWebPreview(makeZip(multiple)),/klasik/);
+});
+test("Vite dynamic-chunk archives are refused rather than showing a broken offline preview",async()=>{
+  const files=[
+    {name:"dist/index.html",content:'<script type="module" src="/assets/index.js"></script>'},
+    {name:"dist/assets/index.js",content:'import("./lazy.js");'},
+    {name:"dist/assets/lazy.js",content:"export const ok=true"}
+  ];
+  await assert.rejects(buildSupportedWebPreview(makeZip(files)),/origin HTTP të izoluar/);
+});
+test("existing offline one-bundle Vite route is kept",async()=>{
+  const result=await buildSupportedWebPreview(makeZip([
+    {name:"dist/index.html",content:'<script type="module" src="/assets/index.js"></script>'},
+    {name:"dist/assets/index.js",content:"document.getElementById('root').textContent='LEGACY-VITE';"}
+  ]));
+  assert.match(result.srcDoc,/LEGACY-VITE/);
+});
