@@ -7,14 +7,14 @@
 
 ## ACTIVE PRIORITY — Source-verified independent audit reconciliation (2026-10-23)
 
-**Canonical next action:** stabilization plan A05/A10 (docs now) then A02/A01 and A06/A07 (code requires separate scoped authorization). PoF2.17 remains PROPOSED/NOT RUN and is postponed until correctness/recovery gates are addressed. No code changes, new product tests, workflow reruns, merge or deploy were performed as part of this review.
+**Canonical next action (2026-10-23):** A02 u implementua dhe u verifikua VETËM në Draft PR #19 nga main, pa merge (commit 01e6527e917486c1eea83bf97250241d205b9ca3; CI 40014826947 SUCCESS). Hapi pasues: A01 ZIP import lifecycle/cancel (kërkon autorizim të veçantë për kod). Pas kësaj A06/A07 recovery invariants; PoF2.17 mbetet PROPOSED/NOT RUN. PR #17/main/Production të pandryshuara; A02 nuk është ende pjesë e PR #17.
 
 **Independent Work audit:** MY_PHONE_INDEPENDENT_DEEP_AUDIT_2026-10-23(1).md, supplied in conversation; not asserted to exist in GitHub. Audit claims rechecked against live My-phone refs/main/PR17, project files, PoF2.16 proof source, CI logs and advisory sources.
 
 | ID | Reconciled evidence | Required next gate |
 |---|---|---|
 | A01 P1 | SOURCE CONFIRMED: ZipImportPanel epoch ignores parent project/native switch. Browser race NOT RUN. | Parent context generation + pending-import cancel + deferred E2E. |
-| A02 P1 | SOURCE CONFIRMED in main/PR17: response.text() reads all bytes before 16KiB limit. | Byte-bounded streaming reader and abort/cancel regression. |
+| A02 P1 | **FIX IMPLEMENTED+CI VERIFIED IN DRAFT PR #19 ONLY**; main/PR17 STILL AFFECTED until authorized integration. | 16,384-byte streamed reader, abort+cancel, 6 new Node tests; 47/47 Node and 26/26 Playwright PASS on SHA 01e6527e. Integration/release NOT DONE; network timeout/project-switch end-to-end specifically NOT newly proven. |
 | A03 P1 | EVIDENCE/CLAIM GAP: CSP/sandbox tests cover selected channels, not all navigation or CPU; exploit NOT CONFIRMED. | Precise offline wording and adversarial negative controls; keep untrusted mode blocked. |
 | A04 P1 | SOURCE CONFIRMED: PoF2.16 note(FAIL) does not set process exit; positive gate separate from experimental outcome is missing. | Fault injection, fail positive controls, preserve security-negative results. |
 | A05 P1 | RECONCILIATION NEEDED: braces GHSA-vfj7-8cjw-p6xm recorded WITHDRAWN 2026-10-23T12:53:02Z by OSV/CIRCL mirror; GitHub HTML cached older active page. node-forge GHSA-86w9-cpqp-85rv still active. Same package-lock blob on PR17/PR18, audit counts 15H/3M vs 4H/3M; cannot infer package fix. | Fresh npm audit in authorized scope, root-ID-based warning and preserved fail-closed rules; no audit-gate edit authorized. |
@@ -95,11 +95,19 @@
 - [HISTORICAL] Ekzekutimi i parë 40000874160 refuzoi formatin e cookie-s; pas korrigjimit 40001072563 dhe 40001365624 treguan CSS 401. Referenca për rezultatet aktuale është **run 40001595784**.
 - [DECISION] Private remote Vite Studio = **NO-GO**. PoF2.17 local-only browser loader është drejtim i propozuar për prova të ardhshme, jo funksion i ndërtuar.
 
+## Verified follow-up — A02 bounded Live Sync correction (2026-10-23)
+
+- [AUTHORIZED SCOPE / IMPLEMENTED IN BRANCH] User approved continuation of specifically proposed A02. Created branch `fix/a02-bounded-live-sync-reader` directly from main `bf1b65e72760dca5c8dd2fb92e9c79b65f77c6df`. Commit `01e6527e917486c1eea83bf97250241d205b9ca3`; [Draft PR #19](https://github.com/titanfit102-bit/My-phone/pull/19) **base main** and OPEN. Only three changed files: `studio/App.tsx`, `studio/src/live-sync.js`, `studio/tests/live-sync.test.mjs`.
+- [VERIFIED CODE] `readBoundedManifestBody` reads Fetch ReadableStream into a fixed 16,384-byte buffer, checks actual byte count, aborts/cancels on overflow, rejects bad/oversized advertised Content-Length early, fails closed if stream missing and decodes UTF-8 with fatal errors. Replaces `response.text()` in Live Sync polling only. Does NOT constrain server-side CPU/network consumption outside the browser's stream, nor change ZIP import.
+- [VERIFIED TESTS] [GitHub Actions 40014826947](https://github.com/titanfit102-bit/My-phone/actions/runs/40014826947), exact SHA `01e6527e`: **47/47 Node PASS**, **26/26 Playwright PASS**, TypeScript and Expo Web export PASS. Six added unit tests: 16KiB boundary, chunked/no Content-Length cancellation, understated/oversized headers, UTF-8 byte boundary and invalid/abort handling. No additional specific browser timeout / project-switch E2E asserted.
+- [NOT RELEASED] A02 code exists ONLY in Draft PR #19; main and stacked PR #17 retain the prior `response.text()` until a separately authorized integration. Do not auto-merge, cherry-pick into #17 or deploy. A01 remains [SOURCE CONFIRMED; UNFIXED].
+- [NEXT] Plan A01 parent/child import epoch invalidation and cancel while busy, deferred E2E and regression, only with scoped code approval; then A06/A07 data recovery invariants. Keep continuity updated after each verified step.
+
 ## Rregulli i vazhdimësisë dhe autorizimit
 - [AUTHORIZED CONTINUOUSLY] Krijim/përditësim **vetëm** i docs/CURRENT_STATE.md dhe docs/MASTER_HANDOFF.md në branch **docs/continuity-checkpoints**, pas ngjarjeve materiale të verifikuara. Ruaj referencat SHA dhe statusin real. Përditëso me commit, kontrollo fetch-in nga GitHub, raporto commit-in. Mos e quaj saved nëse ruajtja dështon.
 - [NOT AUTHORIZED WITHOUT NEW SCOPE] Ndryshim i skedarëve të tjerë, kodit, PR #12–17, main, production, repos të tjera, merge, deploy, secrets, shpenzime ose cloud infra. Përjashtimi i kufizuar PoF2.16 (kod/CI sintetik në branch të veçantë të validation repo) u autorizua me 'vazhdo' në kontekstin e kërkesës paraprake; ky autorizim nuk shtrihet automatikisht te PoF2.17.
 - Nuk ka automatikisht monitorim në background; përditësimi ndodh gjatë sesioneve/ekzekutimeve të autorizuara.
 - Çdo bisedë e re: hap **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/CURRENT_STATE.md** dhe **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/MASTER_HANDOFF.md**. Lexo të dy; mos kërko vetëm në main. Verifiko head aktual, PR, CI e prod; përditëso checkpoint-in për çdo drift; vazhdo hapin më poshtë.
 
-**Next action [AUTHORITATIVE]:** Stabilization: A05/A10 documentation reconciliation is included in this checkpoint; next code tasks require explicit scoped approval: A02 bounded Live Sync reader (main/stacked scope), A01 parent-child ZIP lifecycle (PR stack), then A06/A07 registry/backup; A04/A08 CI reliability, A03/A09 security claims/a11y. PoF2.17 local Vite is postponed, NOT RUN. No code/CI edits authorized by this audit. Private remote Production NO-GO.
+**Next action [AUTHORITATIVE]:** A02 bounded Live Sync reader është implementuar/CI-verifikuar në branch fix/a02-bounded-live-sync-reader, Draft PR #19, **JO merged dhe JO në PR17**. Hapi pasues i zhvillimit A01 parent-child ZIP lifecycle/cancel kërkon autorizim të ri eksplicit për ndryshimin e kodit në branch të izoluar; pastaj A06/A07, A04/A08 dhe A03/A09. Në fund PoF2.17 vetëm pas miratimit. Private remote Production NO-GO.
 **Continuity status:** PoF2.16 already saved and GitHub-verified in commit 5793c9f1d014a7194f929704855bda3a067548b3. The new independent-audit reconciliation is saved ONLY after commit/readback and Draft PR #18 verification.

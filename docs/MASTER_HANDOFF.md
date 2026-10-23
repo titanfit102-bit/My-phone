@@ -13,7 +13,7 @@
 
 ## CURRENT NEXT ACTION — 2026-10-23 (AUTHORITATIVE; overrides historical roadmaps)
 
-**Do not resume at PoF2.13.** PoF2.13–2.16 are completed design/experiments; PoF2.17 is proposed but postponed. Follow the audit-stabilization order below: A05/A10 documentation reconciliation first, A02/A01 limited code changes after separate approval, A06/A07 recovery invariants, A04/A08 proof reliability, A03/A09 coverage and accessibility, and only then local-only PoF2.17 with separate approval. Private remote Vite stays NO-GO.
+**Do not resume at PoF2.13.** PoF2.13–2.16 are completed design/experiments; PoF2.17 proposed/postponed. A05/A10 docs reconciled. **A02 has been implemented and CI verified only in Draft PR #19 (branch fix/a02-bounded-live-sync-reader, SHA 01e6527e)**, base main; NOT merged and NOT in PR #17. Next A01 lifecycle/cancel requires its own scoped code permission, then A06/A07 recovery invariants, A04/A08 evidence reliability, A03/A09 security/a11y, followed by release review; PoF2.17 remains separately gated. Private remote Vite stays NO-GO.
 
 Latest verified app main bf1b65e72760dca5c8dd2fb92e9c79b65f77c6df; PR17 head efa551885a9edf8e85e596da1e25c9994a71b284; PoF2.16 head 4c5232c1ca2e0cb82e06916ccdd10c3756293059. Continuity branch docs/continuity-checkpoints, Draft PR18. Always recheck live refs.
 
@@ -269,7 +269,7 @@ Kërkesa për PoF2.13 design:
 | Finding | Independent verdict | Reproduction/limits | Priority and required patch/acceptance |
 |---|---|---|---|
 | A01 ZIP stale callback | SOURCE CONFIRMED | Panel increments epoch only at pick/close; App selection/native does not invalidate pending ticket; deferred E2E NOT RUN | P1; parent context revision + cancel while busy, stale result must never reopen mode/iframe |
-| A02 manifest overread | SOURCE CONFIRMED main+PR17 | response.text before byte cap; streamed chunk/no Content-Length test NOT RUN | P1; bounded stream 16384 bytes, cancellation, UTF-8 boundary/timeout tests |
+| A02 manifest overread | SOURCE CONFIRMED; **CODE FIX VERIFIED IN PR #19 ONLY** | 6 new Node tests + 26 Playwright passed on exact SHA; existing main and PR17 still have old code | P1; stream max 16,384 bytes, cancel/abort, declared header guard, strict UTF8 in PR19; no merge and no new specific browser timeout E2E |
 | A03 offline/egress claim | CLAIM/PROOF GAP CONFIRMED | No verified universal network/CPU containment; same-frame navigation attack NOT RUN | P1 gate for hostile ZIP; narrowed trusted-prebuilt copy and adversarial egress/navigation/DoS tests |
 | A04 PoF2.16 gates | SOURCE CONFIRMED validation repo | note FAIL does not set process.exitCode; completed experimental run still valid for observed PASS; mutation/fault tests NOT RUN | P1; separate experiment-executed, positive-controls, and security outcome; failing positive controls must fail gate |
 | A05 npm advisories | CONFIRMED NEED FOR RECONCILIATION, advisory status SOURCE-CONFLICT | OSV-synced 2026-10-23 metadata lists GHSA-vfj7-8cjw-p6xm withdrawn; GitHub HTML crawler still displayed earlier Oct2 page. GHSA-86w9-cpqp-85rv active. PR17=15H/3M/0C; PR18=4H/3M/0C with identical lock SHA 3cd545615acc0b40092f232476f5e78bbdfc9c7c. No package remediation established. | P1; fresh exact-SHA npm audit when code scope authorized; warning derived from actual exceptional IDs, reviewed/withdrawn triage with no broadening, review deadline 2026-11-21 unchanged |
@@ -284,7 +284,7 @@ Kërkesa për PoF2.13 design:
 ### Ordered patch plan — proposed only, not authorized code
 
 1. **Documentation now:** this A05/A10 reconciliation plus P0 NO-GO and corrected recovery pointer; do not touch security gate or product README without permission.
-2. **P1 product correctness after scoped authorization:** A02 minimal byte-limited manifest helper + tests in a branch consistent with PR stack, followed by A01 import-session cancellation/context generation and deferred browser tests; choose branch explicitly, do not modify main or PR17 without additional approval.
+2. **P1 product correctness:** A02 **DONE IN DRAFT PR #19 ONLY, VERIFIED CI 40014826947**; no merge into main/PR17. Next A01 import-session cancellation/context generation and deferred browser tests requires separate scoped approval; do not modify PR17 without authorization.
 3. **Recovery safety before release:** A06/A07 common MAX_PROJECTS, field-length, UTF-8 bytes and backup round-trip invariants; protect existing localStorage; 99/100/101, long URL and non-ASCII boundary tests.
 4. **Proof quality:** A04 positive-control fail gates in validation repository (needs its own authorization), A08 official synthetic fixture lockfile+ZIP evidence in product workflow (needs separate workflow edit approval).
 5. **Security scope and a11y:** A03 clarify offline claims, synthetic navigation/no-egress/CPU test; A09 accessible names, async status, keyboard and real screen-reader verification.
@@ -294,6 +294,14 @@ Kërkesa për PoF2.13 design:
 **Gate evidence:** A01/A02/A04/A06/A07 are high-confidence static flow weaknesses, NOT independently newly reproduced runtime failures in this audit. A03 is claim/coverage gap, not an observed escape. A05 is an evolving upstream advisory state, not package patch. A08/A09/A10 are directly checkable source/docs/provenance issues. Production Vercel SHA/READY remain UNKNOWN; previous Work audit reported 403 and we did not bypass or verify this session.
 
 **Authorization remains restrictive:** This checkpoint may change ONLY docs/CURRENT_STATE.md and docs/MASTER_HANDOFF.md on docs/continuity-checkpoints. No code files, validation scripts, workflows, PR #12–17, main, deployments, cloud, costs, or other repos touched. All proposed patches await exact scope approval.
+
+### A02 implementation checkpoint — isolated Draft PR #19 (2026-10-23)
+
+- **Exact refs:** [Draft PR #19](https://github.com/titanfit102-bit/My-phone/pull/19) base `main`, head `fix/a02-bounded-live-sync-reader`, commit `01e6527e917486c1eea83bf97250241d205b9ca3` started from the verified main `bf1b65e72760dca5c8dd2fb92e9c79b65f77c6df`. NOT a change to PR #12–17 or Vercel.
+- **Modified source:** `studio/src/live-sync.js` adds a streamed fixed 16,384-byte reader for build-info.json. `studio/App.tsx` replaces unbounded `response.text()` and preserves existing poller timeout, disabled/visibility guards, state transitions and stale-result suppression. `studio/tests/live-sync.test.mjs` adds six unit cases for streamed oversize, early Content-Length rejection, incorrect headers, exact byte limit, UTF8/invalid bytes and AbortError.
+- **Evidence:** [Exact SHA GitHub Actions 40014826947](https://github.com/titanfit102-bit/My-phone/actions/runs/40014826947) SUCCESS. Node 47/47 PASS, Playwright desktop/mobile 26/26 PASS, TS/export PASS. PR19 three-file diff independently checked.
+- **Limitations:** CI is baseline main plus isolated A02 only, **not** the stacked PR17 full 98/98 fixture suite; no official Expo PR17 import was re-executed with A02 integrated. The main and PR17 continue to expose the original unbounded body read. A02 is **not closed for Production** until separately authorized integration and release verification. Byte streaming protects app-side accumulation but cannot bound all browser transport buffers/remote server workload.
+- **Next stage and scope:** A01 parent-child ZIP pending upload invalidation/cancel, exact browser deferred result test. Requires separate permission to edit code. Preserve PR #19 Draft and continuity PR #18 documentation-only.
 
 ## 10. Autorizimet e qëndrueshme dhe kufijtë absolutë
 
