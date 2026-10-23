@@ -67,7 +67,13 @@ jobs:
             maps,sources:all.size,zodSourceCount:zod.length,expoCliSourceCount:expoCli.length,
             zodExample:zod.slice(0,6),cliExample:expoCli.slice(0,6)
           },null,2));
-          if(zod.length||expoCli.length)throw new Error("Zod or Expo CLI code found in Web client sourcemaps; review required");
+          // Expo's Metro runtime loader is intentionally emitted into the client.
+          // It is not the DevTools HTTP server/parser, and its presence alone is
+          // not evidence that any Zod parser is shipped.
+          const serverCli=expoCli.filter(s=>!s.endsWith("/build/metro-require/require.js"));
+          console.log("Allowed Metro runtime helper count:",expoCli.length-serverCli.length);
+          if(zod.length||serverCli.length)
+            throw new Error("Unexpected Zod or non-runtime Expo CLI module in Web source maps");
           NODE
       - name: Confirm no checked-in files modified
         run: |
