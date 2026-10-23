@@ -11,6 +11,12 @@
 >
 > Prompt i shkurtër rikuperimi: “Vazhdo My Phone Expo Studio. Lexo GitHub titanfit102-bit/My-phone **branch docs/continuity-checkpoints**, dokumentet docs/CURRENT_STATE.md dhe docs/MASTER_HANDOFF.md; verifiko live commits, PR, CI; vazhdo nga NEXT ACTION brenda autorizimeve, pa ndryshim kodi/merge/deploy pa leje.”
 
+## CURRENT NEXT ACTION — 2026-10-23 (AUTHORITATIVE; overrides historical roadmaps)
+
+**Do not resume at PoF2.13.** PoF2.13–2.16 are completed design/experiments; PoF2.17 is proposed but postponed. Follow the audit-stabilization order below: A05/A10 documentation reconciliation first, A02/A01 limited code changes after separate approval, A06/A07 recovery invariants, A04/A08 proof reliability, A03/A09 coverage and accessibility, and only then local-only PoF2.17 with separate approval. Private remote Vite stays NO-GO.
+
+Latest verified app main bf1b65e72760dca5c8dd2fb92e9c79b65f77c6df; PR17 head efa551885a9edf8e85e596da1e25c9994a71b284; PoF2.16 head 4c5232c1ca2e0cb82e06916ccdd10c3756293059. Continuity branch docs/continuity-checkpoints, Draft PR18. Always recheck live refs.
+
 ## 1. Identiteti, vizioni dhe kufijtë e produktit
 
 **[DECIDED]** Produkti quhet **My Phone Expo Studio**: një hapësirë qendrore me telefon virtual që lejon përdoruesin të menaxhojë referenca projektesh, të hapë Web previews ose Android cloud previews, dhe për profile të mbështetura të importojë ZIP prebuilt për shikim të përkohshëm. Ambicia finale është një rrjedhë e besueshme ZIP/GitHub → preview sa më automatik, në browser/telefon, pa instalime të detyrueshme në PC dhe pa shpenzime të papritura. Ambicia nuk është e njëjtë me mbështetje universale aktuale.
@@ -129,7 +135,7 @@ Dokumentet e PR-ve #12–17 nuk janë domosdoshmërisht në main. Hap file-in me
 
 Nuk ka përqindje universale të verifikuar: fazat, weight dhe kosto-t ende nuk janë formalizuar për përllogaritje. Prototipet PoF janë gates të kaluara për pjesë të veçanta, jo të gjitha fazat.
 
-## 9. NEXT ACTION e saktë: PoF2.13
+## 9. HISTORICAL DESIGN RECORD: PoF2.13 (SUPERSEDED; NOT THE CURRENT NEXT ACTION)
 
 **Status më 2026-10-23: [DESIGN ANALYSIS COMPLETED; IMPLEMENTATION NOT STARTED].** U lexua pof212/isolated_host.mjs dhe browser_proof.mjs (branch eksperimental); draft i modelit dhe test-plan i authZ u formulua më poshtë. Nuk është krijuar asnjë shërbim i ri, nuk është shtuar kod dhe nuk ka prova reale të autentikimit të skedarëve.
 
@@ -238,7 +244,7 @@ Kërkesa për PoF2.13 design:
 
 **[VERIFIED, SYNTHETIC]** Branch i dedikuar në https://github.com/titanfit102-bit/my-phone-pof-validation/tree/feat/pof216-partitioned-cookie-esm-probe , head 4c5232c1ca2e0cb82e06916ccdd10c3756293059. Workflow final [40001595784](https://github.com/titanfit102-bit/my-phone-pof-validation/actions/runs/40001595784): SUCCESS, official vite build në ubuntu-24.04 + Chromium. Evidence artifact SHA-256 25bc182eacdfc9ed318b13f610759678ecfb9cd5dfa4dddec7f281e481691b62, ZIP CRC OK, file results/pof216-experiment.json me **13 PASS, 1 PASS_EXPECTED_DENIAL, 1 BLOCKED_OR_UNPROVEN**. SUCCESS është statusi i ekzekutimit të eksperimenti, **jo** aprovimi i sigurisë private.
 
-**Test design:** host i besuar https://127.0.0.1 dhe dy origin-e sintetike https://127.0.0.2/.3, certifikatë self-signed e gjeneruar dhe shkatërruar në runner; test browser ignoreHTTPSErrors=true. Browser context kishte cookie të injektuar nëpërmjet Playwright, Secure, HttpOnly, SameSite=None, Partitioned (nuk u implementua provider identiteti ose proces login). Serveri kontrollonte cookie sintetik për çdo file GET; bllokon GET pa cookie (401), TTL/revoke test. Artefaktet dhe emrat e requesteve u regjistruan pa cookie values/URL token.
+**Test design:** host i besuar https://127.0.0.1 dhe dy origin-e sintetike https://127.0.0.2/.3, certifikatë self-signed e gjeneruar dhe shkatërruar në runner; test browser ignoreHTTPSErrors=true. Browser context kishte cookie të injektuar nëpërmjet Playwright, Secure, HttpOnly, SameSite=None, Partitioned (nuk u implementua provider identiteti ose proces login). Serveri kontrollonte cookie sintetik për çdo file GET; bllokon GET pa cookie (401); testoi revokimin, por PoF2.16 NUK implementoi TTL/expiry dhe NUK ekzekutoi test skadimi (NOT RUN). Artefaktet dhe emrat e requesteve u regjistruan pa cookie values/URL token.
 
 **Evidence positive:**
 - Browser pranoi cookie Partitioned dhe kërkesa e autorizuar HTML u shërbye 200.
@@ -255,6 +261,39 @@ Kërkesa për PoF2.13 design:
 **Decision / release gate:** **PRIVATE PRODUCTION NO-GO**. Credentialed ESM/CSS është teknikisht i mundur në këtë fixture, por konfidencialiteti ndaj iframe-ve të tjera opake, identiteti real dhe vetitë cross-browser nuk janë provuar. Nuk vendoset cookie auth në Studio pa security review. Eksperimenti nuk ka ndryshuar My-phone, PR #12–18, main ose Vercel.
 
 **NEXT PROPOSED PoF2.17:** Prioritizo një provë **browser-local** për të hapur zyrtarisht Vite multi-chunk ZIP në iframe opak pa ngarkim në server dhe pa cookies; provë e ndarë për static assets, import.meta, dynamic ESM, blob origin/storage partition, CSP/CPU/memory, failure/no-network. Kjo ul nevojën për shërbim privat me tenant auth dhe përputhet me objektivin pa kosto/ngarkime. Vetëm me autorizim të shprehur për branch/kod/test të ri. Nëse remote private mode mbetet i domosdoshëm, duhet test më i fortë same-browser sibling fetch që arrihet realisht në asset server dhe provohet authZ për çdo request.
+
+## 9B. Independent Work audit — independently reconciled (2026-10-23)
+
+**Provenance:** uploaded independent audit file MY_PHONE_INDEPENDENT_DEEP_AUDIT_2026-10-23(1).md was read in this conversation. Findings were not accepted blindly; source re-read from GitHub main bf1b65e7, PR17 efa55188, PoF2.16 4c5232c, CI runs PR17 39948253159 / PR18 40002211484 / PoF2.16 40001595784. NO code, test rerun, merge, deployment or paid resources used for this reconciliation. A finding backed by a source path is SOURCE CONFIRMED, not automatically a browser runtime repro.
+
+| Finding | Independent verdict | Reproduction/limits | Priority and required patch/acceptance |
+|---|---|---|---|
+| A01 ZIP stale callback | SOURCE CONFIRMED | Panel increments epoch only at pick/close; App selection/native does not invalidate pending ticket; deferred E2E NOT RUN | P1; parent context revision + cancel while busy, stale result must never reopen mode/iframe |
+| A02 manifest overread | SOURCE CONFIRMED main+PR17 | response.text before byte cap; streamed chunk/no Content-Length test NOT RUN | P1; bounded stream 16384 bytes, cancellation, UTF-8 boundary/timeout tests |
+| A03 offline/egress claim | CLAIM/PROOF GAP CONFIRMED | No verified universal network/CPU containment; same-frame navigation attack NOT RUN | P1 gate for hostile ZIP; narrowed trusted-prebuilt copy and adversarial egress/navigation/DoS tests |
+| A04 PoF2.16 gates | SOURCE CONFIRMED validation repo | note FAIL does not set process.exitCode; completed experimental run still valid for observed PASS; mutation/fault tests NOT RUN | P1; separate experiment-executed, positive-controls, and security outcome; failing positive controls must fail gate |
+| A05 npm advisories | CONFIRMED NEED FOR RECONCILIATION, advisory status SOURCE-CONFLICT | OSV-synced 2026-10-23 metadata lists GHSA-vfj7-8cjw-p6xm withdrawn; GitHub HTML crawler still displayed earlier Oct2 page. GHSA-86w9-cpqp-85rv active. PR17=15H/3M/0C; PR18=4H/3M/0C with identical lock SHA 3cd545615acc0b40092f232476f5e78bbdfc9c7c. No package remediation established. | P1; fresh exact-SHA npm audit when code scope authorized; warning derived from actual exceptional IDs, reviewed/withdrawn triage with no broadening, review deadline 2026-11-21 unchanged |
+| A06 100 project cap | SOURCE CONFIRMED | App save setProjects accepts 101, writeProjectRegistry/serialize reject >100; runtime repro NOT RUN | P2 finding but release-gate P1 for reliable user data; reject ahead of state mutation; 99→100→101/edit tests |
+| A07 invalid exported backup | SOURCE CONFIRMED | cleanWebUrl allows long URLs; JSON serializer no byte cap; importer UI checks file.size 200000 and parser string.length 200000 (not same UTF-8 bytes); runtime repro NOT RUN | P2 finding, release-gate P1; strict field/count/UTF-8 byte contract + round-trip at boundaries; no silent truncation |
+| A08 irreproducible PoF2.10 bytes | SOURCE CONFIRMED | Workflow uploads proof/manifest.json but neither proof/official-expo-web.zip nor fixture package-lock; archive contents not retained | P2; retain synthetic ZIP and lock bytes with digest/manifest proof and retention cap after approval |
+| A09 accessibility | SOURCE CONFIRMED missing explicit label/live-status wiring | No manual screen reader test; do not claim universal assistive failure | P2; programmatic labels, status/alert, role/name and keyboard tests; manual SR acceptance |
+| A10 stale handoff / TTL | SOURCE CONFIRMED and DOC CORRECTED in this continuity checkpoint | Old master §9 called PoF2.13 next and PoF2.16 claimed TTL test; pof216/cookie_host.mjs has boolean revoke, no expiry fields | P2 documentation; canonical NEXT ACTION above, historical title tagged, TTL marked NOT IMPLEMENTED/NOT RUN; verify both docs agree |
+
+**Advisory evidence quality.** For GHSA-vfj7-8cjw-p6xm, independent OSV mirror from CIRCL states withdrawn 2026-10-23T12:53:02Z while a direct crawled GitHub advisory page remained cached at Oct 2 active metadata. This is an externally grounded status update with a disagreement in surfaced snapshots; treat it as a reason to check authoritative live npm audit/metadata again, not proof of zero vulnerabilities or justification to delete all high-risk exception controls. GitHub node-forge GHSA-86w9-cpqp-85rv still lists affected <=1.4.0 with no patched version. Do not extend 2026-11-21 review date or use npm audit --force. CI discrepancy likely advisory metadata movement, not dependency upgrade, since lock blob is the same.
+
+### Ordered patch plan — proposed only, not authorized code
+
+1. **Documentation now:** this A05/A10 reconciliation plus P0 NO-GO and corrected recovery pointer; do not touch security gate or product README without permission.
+2. **P1 product correctness after scoped authorization:** A02 minimal byte-limited manifest helper + tests in a branch consistent with PR stack, followed by A01 import-session cancellation/context generation and deferred browser tests; choose branch explicitly, do not modify main or PR17 without additional approval.
+3. **Recovery safety before release:** A06/A07 common MAX_PROJECTS, field-length, UTF-8 bytes and backup round-trip invariants; protect existing localStorage; 99/100/101, long URL and non-ASCII boundary tests.
+4. **Proof quality:** A04 positive-control fail gates in validation repository (needs its own authorization), A08 official synthetic fixture lockfile+ZIP evidence in product workflow (needs separate workflow edit approval).
+5. **Security scope and a11y:** A03 clarify offline claims, synthetic navigation/no-egress/CPU test; A09 accessible names, async status, keyboard and real screen-reader verification.
+6. **Release review:** exact-SHA Node + TS + Expo export/notices + Playwright standard + real official Expo ZIP UI tests; review PR #12–17 dependency order; private remote NO-GO; merge/Production only with explicit authorization.
+7. **PoF2.17 only after stabilization and separate approval:** in-browser Vite multi-chunk import without upload, verifying ESM/dynamic assets/import.meta/sandbox/limits/revocation/no network. Blob-only PoF2.16 is NOT Vite ZIP proof.
+
+**Gate evidence:** A01/A02/A04/A06/A07 are high-confidence static flow weaknesses, NOT independently newly reproduced runtime failures in this audit. A03 is claim/coverage gap, not an observed escape. A05 is an evolving upstream advisory state, not package patch. A08/A09/A10 are directly checkable source/docs/provenance issues. Production Vercel SHA/READY remain UNKNOWN; previous Work audit reported 403 and we did not bypass or verify this session.
+
+**Authorization remains restrictive:** This checkpoint may change ONLY docs/CURRENT_STATE.md and docs/MASTER_HANDOFF.md on docs/continuity-checkpoints. No code files, validation scripts, workflows, PR #12–17, main, deployments, cloud, costs, or other repos touched. All proposed patches await exact scope approval.
 
 ## 10. Autorizimet e qëndrueshme dhe kufijtë absolutë
 

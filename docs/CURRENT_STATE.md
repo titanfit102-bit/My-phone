@@ -5,6 +5,29 @@
 **Lexo më pas:** [MASTER_HANDOFF.md](./MASTER_HANDOFF.md). Për gjendjen reale, verifiko GitHub pas këtij checkpoint-i; dokumenti mund të vjetrohet.
 **Rregull:** state-in e raportuar këtu mos e ngatërro me release-in Production. Asnjë ndryshim dokumentacioni në këtë degë nuk është merge në main.
 
+## ACTIVE PRIORITY — Source-verified independent audit reconciliation (2026-10-23)
+
+**Canonical next action:** stabilization plan A05/A10 (docs now) then A02/A01 and A06/A07 (code requires separate scoped authorization). PoF2.17 remains PROPOSED/NOT RUN and is postponed until correctness/recovery gates are addressed. No code changes, new product tests, workflow reruns, merge or deploy were performed as part of this review.
+
+**Independent Work audit:** MY_PHONE_INDEPENDENT_DEEP_AUDIT_2026-10-23(1).md, supplied in conversation; not asserted to exist in GitHub. Audit claims rechecked against live My-phone refs/main/PR17, project files, PoF2.16 proof source, CI logs and advisory sources.
+
+| ID | Reconciled evidence | Required next gate |
+|---|---|---|
+| A01 P1 | SOURCE CONFIRMED: ZipImportPanel epoch ignores parent project/native switch. Browser race NOT RUN. | Parent context generation + pending-import cancel + deferred E2E. |
+| A02 P1 | SOURCE CONFIRMED in main/PR17: response.text() reads all bytes before 16KiB limit. | Byte-bounded streaming reader and abort/cancel regression. |
+| A03 P1 | EVIDENCE/CLAIM GAP: CSP/sandbox tests cover selected channels, not all navigation or CPU; exploit NOT CONFIRMED. | Precise offline wording and adversarial negative controls; keep untrusted mode blocked. |
+| A04 P1 | SOURCE CONFIRMED: PoF2.16 note(FAIL) does not set process exit; positive gate separate from experimental outcome is missing. | Fault injection, fail positive controls, preserve security-negative results. |
+| A05 P1 | RECONCILIATION NEEDED: braces GHSA-vfj7-8cjw-p6xm recorded WITHDRAWN 2026-10-23T12:53:02Z by OSV/CIRCL mirror; GitHub HTML cached older active page. node-forge GHSA-86w9-cpqp-85rv still active. Same package-lock blob on PR17/PR18, audit counts 15H/3M vs 4H/3M; cannot infer package fix. | Fresh npm audit in authorized scope, root-ID-based warning and preserved fail-closed rules; no audit-gate edit authorized. |
+| A06 P2 (release-gate P1) | SOURCE CONFIRMED: UI 101st addition accepted, storage and backup reject >100. Browser test NOT RUN. | Reject before setProjects; count 99/100/101 and edit-at-100 tests. |
+| A07 P2 (release-gate P1) | SOURCE CONFIRMED: no URL length cap or export byte cap; import <=200000 bytes. Round-trip fails for some accepted inputs. | Shared UTF-8 byte/field/count invariant and Unicode/size tests. |
+| A08 P2 | SOURCE CONFIRMED: PoF2.10 upload excludes official Expo ZIP and fixture lockfile, includes hash manifest only. | Synthetic-only archive bytes + lockfile + digest-verification test; no private artifacts. |
+| A09 P2 | SOURCE CONFIRMED: Field TextInput lacks programmatic accessible name, async messages not live-status. Impact with screen readers NOT RUN. | Proper labels, status roles, keyboard and manual SR testing. |
+| A10 P2 | SOURCE CONFIRMED: MASTER_HANDOFF had stale NEXT ACTION PoF2.13 and falsely attributed TTL to PoF2.16. | Historical section relabeled, current next action made canonical, PoF2.16 TTL marked NOT IMPLEMENTED/NOT RUN. |
+
+**Unchanged blockers:** private remote Vite NO-GO; real Vercel deployment SHA/READY UNKNOWN. PR12–17 remain unmerged and PR18 is docs-only Draft. GitHub repo public; no private source should be added to validation artifacts.
+
+**Authorization:** ongoing permission permits ONLY these two continuity files in docs/continuity-checkpoints. Do not modify App.tsx, ZIP panel, storage, audit gate, test harness, workflows or other repos from this audit without explicit new scope. Read-only analysis and prioritized planning are allowed.
+
 ## Identiteti dhe autoriteti
 - [VERIFIED] Repository kryesor: https://github.com/titanfit102-bit/My-phone ; dukshmëria në GitHub ishte **public** në kontrollin 2026-10-23. README/ADR të vjetra thonë “private”; kjo është mospërputhje dokumentimi, jo ndryshim aksesi i autorizuar.
 - [VERIFIED] main: bf1b65e72760dca5c8dd2fb92e9c79b65f77c6df (gjendja në kontrollin e 2026-10-23).
@@ -78,5 +101,5 @@
 - Nuk ka automatikisht monitorim në background; përditësimi ndodh gjatë sesioneve/ekzekutimeve të autorizuara.
 - Çdo bisedë e re: hap **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/CURRENT_STATE.md** dhe **https://github.com/titanfit102-bit/My-phone/blob/docs/continuity-checkpoints/docs/MASTER_HANDOFF.md**. Lexo të dy; mos kërko vetëm në main. Verifiko head aktual, PR, CI e prod; përditëso checkpoint-in për çdo drift; vazhdo hapin më poshtë.
 
-**Next action:** PoF2.17 [PROPOSED, NOT RUN] — prioritet: provë Vite multi-chunk 100% lokale në browser, pa upload dhe pa shërbim publik, me Blob/ESM/CSS/PNG, import.meta, revokim dhe sandbox opak. Paralelisht, P0 security gate mbetet prova e mbrojtjes kundër iframe-ve të tjera opake dhe identitetit të çdo asset-i nëse studio do të shërbejë artifacts private nga HTTPS. Implementimi i ri i kodit/workflow kërkon miratim të veçantë; deri atëherë read-only. Private remote Production = NO-GO.
-**Continuity status:** checkpoint aktiv, PoF2.15 i ruajtur në commit 9bbe6352308222e72e27b85ccbe72091ed269fd4; checkpoint PoF2.16 konsiderohet i ruajtur vetëm pas commit/readback + kontroll PR #18 në GitHub.
+**Next action [AUTHORITATIVE]:** Stabilization: A05/A10 documentation reconciliation is included in this checkpoint; next code tasks require explicit scoped approval: A02 bounded Live Sync reader (main/stacked scope), A01 parent-child ZIP lifecycle (PR stack), then A06/A07 registry/backup; A04/A08 CI reliability, A03/A09 security claims/a11y. PoF2.17 local Vite is postponed, NOT RUN. No code/CI edits authorized by this audit. Private remote Production NO-GO.
+**Continuity status:** PoF2.16 already saved and GitHub-verified in commit 5793c9f1d014a7194f929704855bda3a067548b3. The new independent-audit reconciliation is saved ONLY after commit/readback and Draft PR #18 verification.
