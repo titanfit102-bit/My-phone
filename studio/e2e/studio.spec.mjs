@@ -101,6 +101,27 @@ test("sync checks a published manifest and refreshes only on a new revision", as
   expect(observed.manifests).toBeGreaterThan(1);
 });
 
+test("oversized published manifest is rejected without claiming a verified release", async ({page}) => {
+  await page.route(/^https:\/\/preview\.example\.test\//, async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    if(pathname==="/build-info.json")
+      return route.fulfill({
+        status:200, contentType:"application/json",
+        headers:{"Access-Control-Allow-Origin":"*"},
+        body:JSON.stringify({revision:"should-not-publish",padding:"x".repeat(70000)})
+      });
+    return route.fulfill({
+      status:200,contentType:"text/html",
+      body:"<!doctype html><h1>External preview survives</h1>"
+    });
+  });
+  await page.goto("/");
+  await createProject(page,"Oversized Manifest");
+  await expect(page.getByText("Version i paverifikueshëm")).toBeVisible();
+  await expect(page.getByText("should-not-publish",{exact:true})).toHaveCount(0);
+  await expect(preview(page,"Oversized Manifest").getByRole("heading",{name:"External preview survives"})).toBeVisible();
+});
+
 test("unsupported manifest uses fallback and keeps the external-open action", async ({page}) => {
   await page.route(/^https:\/\/preview\.example\.test\//, async route => {
     const path = new URL(route.request().url()).pathname;
