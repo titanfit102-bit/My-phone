@@ -63,6 +63,14 @@ export default function App() {
   const [projects,setProjects] = useState<Project[]>([]);
   // Session only: never persisted to localStorage, My Projects or server.
   const [quickPreview,setQuickPreview]=useState<QuickPreview|null>(null);
+  // Synchronously revoke pending ZIP callbacks on a parent context change.
+  const zipContextRef=useRef(0);
+  const [zipContext,setZipContext]=useState(0);
+  const invalidateZipContext=()=>{
+    zipContextRef.current+=1;
+    setZipContext(zipContextRef.current);
+    setQuickPreview(null);
+  };
   const [selected,setSelected] = useState<string|null>(null);
   const [mode,setMode] = useState<Mode>("web");
   const [formOpen,setFormOpen] = useState(false);
@@ -128,6 +136,7 @@ export default function App() {
         if(!saved.ok)throw new Error("Importi nuk u ruajt; ndryshimet ekzistuese nuk u prekën.");
         writableRegistry.current=true;
         setRegistryWarning("");
+        invalidateZipContext();
         setProjects(merged);
         setSelected(previous=>previous||merged[0]?.id||null);
         setBackupMessage("Backup u importua: "+(merged.length-projects.length)+" projekte të reja.");
@@ -239,6 +248,7 @@ export default function App() {
         throw new Error("Mos përdor adresën e vetë studios si demo: iframe në të njëjtin origin nuk lejohet.");
       const next=editing ? projects.map(p=>p.id===editing?value:p) : [...projects,value];
       resetFreeze();
+      invalidateZipContext();
       setProjects(next);setSelected(value.id);setMode(chooseMode(value,mode) as Mode);
       setFormOpen(false);setEditing(null);setError("");setRevision(r=>r+1);
     } catch(e) {setError(e instanceof Error?e.message:"Të dhënat nuk u pranuan.");}
@@ -249,11 +259,12 @@ export default function App() {
     setPendingRemoval(null);
     const next=projects.filter(p=>p.id!==project.id);
     resetFreeze();
+    invalidateZipContext();
     setProjects(next);setSelected(next[0]?.id || null);setFormOpen(false);
   };
   const pick = (project:Project) => {
     if(project.id!==selected) resetFreeze();
-    setQuickPreview(null);
+    invalidateZipContext();
     setSelected(project.id);setFormOpen(false);setPendingRemoval(null);setMode(chooseMode(project,mode) as Mode);
     setRevision(r=>r+1);
   };
@@ -284,15 +295,19 @@ export default function App() {
           <View style={styles.leftModeControls}>
             <Text style={styles.overline}>02 / ZGJIDH PREVIEW</Text>
           <View style={styles.modeSwitcher}>
-            <Pressable accessibilityRole="button" onPress={()=>{setMode("web");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" onPress={()=>{invalidateZipContext();setMode("web");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="web"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="web"&&styles.modeLabelActive]}>◈ Expo Web Preview</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={()=>{setQuickPreview(null);setMode("native");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" onPress={()=>{invalidateZipContext();setMode("native");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="native"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="native"&&styles.modeLabelActive]}>▣ Android Cloud APK</Text></Pressable>
           </View>
           </View>
-          <ZipImportPanel onPreview={value=>{setQuickPreview(value);if(value)setMode("web");}}/>
+          <ZipImportPanel key={"zip-context-"+zipContext} onPreview={value=>{
+             // Callback captured before project/mode switch cannot restore a stale iframe.
+             if(zipContext!==zipContextRef.current)return;
+             setQuickPreview(value);if(value)setMode("web");
+           }}/>
           {!!registryWarning&&<Text accessibilityRole="alert" style={styles.registryWarning}>{registryWarning}</Text>}
           <View style={styles.backupActions}>
             <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>

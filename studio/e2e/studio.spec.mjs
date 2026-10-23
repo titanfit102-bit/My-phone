@@ -301,6 +301,50 @@ test("HTML-only ZIP lacking its JS bundle cannot falsely claim working preview",
   await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
 });
 
+test("pending ZIP cannot reopen after project switch or cancel during import",async ({page})=>{
+  // Hold the actual File.arrayBuffer promise until the user changes context.
+  await page.addInitScript(()=>{
+    const original=Blob.prototype.arrayBuffer;
+    File.prototype.arrayBuffer=function(...args){
+      if(this.name==="slow.zip")
+        return new Promise((resolve,reject)=>{
+          window.__releaseSlowZip=()=>Promise.resolve(original.apply(this,args)).then(resolve,reject);
+        });
+      return original.apply(this,args);
+    };
+  });
+  await mockApplication(page);
+  await page.goto("/");
+  await createProject(page,"Previous Project");
+  await createProject(page,"Current Project");
+  await page.getByRole("button",{name:"Hap Previous Project"}).click();
+  const zip=makeZip([
+    {name:"dist/index.html",content:'<!doctype html><div id="root"></div><script type="module" src="/assets/app.js"></script>'},
+    {name:"dist/assets/app.js",content:'document.querySelector("#root").textContent="STALE-ZIP-MUST-NOT-RENDER"'}
+  ]);
+  const upload=async()=>{
+    const [chooser]=await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByRole("button",{name:"↑ Ngarko ZIP"}).click()
+    ]);
+    await chooser.setFiles({name:"slow.zip",mimeType:"application/zip",buffer:Buffer.from(zip)});
+    await expect(page.getByText("Po lexohet ZIP...")).toBeVisible();
+    await expect.poll(()=>page.evaluate(()=>typeof window.__releaseSlowZip)).toBe("function");
+  };
+  await upload();
+  await page.getByRole("button",{name:"Hap Current Project"}).click();
+  await page.evaluate(async()=>{await window.__releaseSlowZip();await new Promise(r=>setTimeout(r,100));});
+  await expect(preview(page,"Current Project").getByTestId("mock-version")).toHaveText("Version alpha");
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+  await expect(page.getByText("ENGINE CORE · OFFLINE_PAYLOAD_PREPARED")).toHaveCount(0);
+  await upload();
+  await page.getByRole("button",{name:"✕ Mbyll Quick Preview"}).click();
+  await page.evaluate(async()=>{await window.__releaseSlowZip();await new Promise(r=>setTimeout(r,100));});
+  await expect(page.locator('iframe[title="Quick Preview · ZIP"]')).toHaveCount(0);
+  await expect(page.getByText("Po lexohet ZIP...")).toHaveCount(0);
+  await expect(page.getByText(/Sesioni përfundoi/)).toBeVisible();
+});
+
 test("ZIP Quick Preview displays built Vite HTML only in sandbox, and closes without saving",async ({page})=>{
   await page.goto("/");
   const zip=makeZip([
