@@ -44,6 +44,10 @@ function classify(paths) {
   if (next) return {kind:"source",framework:"Next.js (indikacion)",previewReady:false};
   if (vite) return {kind:"source",framework:"Vite / React ose framework tjetër (indikacion)",previewReady:false};
   if (packageJson) return {kind:"source",framework:"JavaScript / Node (i pakonfirmuar)",previewReady:false};
+  // Structural hint only. Full Metro profile validation occurs in the renderer.
+  const expoWeb=web&&hasEnd("metadata.json")&&
+    normalized.some(p=>/(^|\/)_expo\/static\/js\/web\/appentry-[a-z0-9_-]+\.js$/.test(p));
+  if(expoWeb) return {kind:"static",framework:"Expo Web / Metro (kandidat)",previewReady:false};
   if (web) return {kind:"static",framework:"HTML statik / build kandidat",previewReady:false};
   if (hasPrefix("android") || hasEnd("gradlew")) return {kind:"native",framework:"Android source (indikacion)",previewReady:false};
   return {kind:"unknown",framework:"Strukturë e panjohur",previewReady:false};
@@ -107,6 +111,12 @@ export function inspectZip(arrayBuffer, filename="archive.zip") {
   const result=classify(normalized.paths);
   // Detect build entries independently of framework; GitHub source ZIPs may include dist/.
   const candidates=normalized.paths.filter(path=>/(^|\/)(dist|build|out)\/index\.html$/i.test(path));
+  // A root-level official Expo export has index.html + Metro metadata and AppEntry.
+  // Do not classify an arbitrary root index.html as runnable.
+  if(candidates.length===0 && normalized.paths.includes("index.html") &&
+      normalized.paths.includes("metadata.json") &&
+      normalized.paths.some(path=>/^_expo\/static\/js\/web\/AppEntry-[A-Za-z0-9_-]+\.js$/.test(path)))
+    candidates.push("index.html");
   return {
     filename,
     buildCandidateCount:candidates.length,

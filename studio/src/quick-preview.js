@@ -229,3 +229,161 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
   return {filename,indexPath:index,srcDoc,cssCount:css.length,localAssetCount:cache.size,
     warning:"Preview offline i përkohshëm: API/backend, asete të tjera nga JavaScript dhe module shtesë mund të mos funksionojnë."};
 }
+
+
+// Limited, offline Expo Web profile. This is NOT a universal Metro/Expo source compiler.
+// The verified PoF2.9 Expo single-bundle output can run with an opaque srcDoc origin,
+// provided the referenced local PNGs are integrity checked and embedded as data URLs.
+const EXPO_ENTRY=/^\/_expo\/static\/js\/web\/AppEntry-[A-Za-z0-9_-]+\.js$/;
+function expoCandidateIndexes(all){
+  return [...all.keys()].filter(index=>{
+    if(index!=="index.html"&&!/(^|\/)(?:dist|build|out)\/index\.html$/i.test(index))return false;
+    const prefix=index.slice(0,index.lastIndexOf("/")+1);
+    return all.has(prefix+"metadata.json") &&
+      [...all.keys()].some(p=>p.startsWith(prefix+"_expo/static/js/web/AppEntry-")&&p.endsWith(".js"));
+  });
+}
+async function verifyPngStructure(bytes){
+  // Conservative offline profile: bounded, non-interlaced, 8-bit RGB/RGBA PNG only.
+  // Other valid PNG formats are intentionally unsupported until separately tested.
+  if(bytes.length<45 || ![137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v))
+    reject("PNG Expo ka signature të pavlefshme.");
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  let offset=8,hasHeader=false,hasImage=false,hasEnd=false,idatClosed=false;
+  const idat=[];
+  let expected=0,stride=0;
+  while(offset+12<=bytes.length){
+    const len=view.getUint32(offset,false);
+    if(len>bytes.length-offset-12)reject("PNG Expo është i prerë.");
+    const type=String.fromCharCode(...bytes.subarray(offset+4,offset+8));
+    let crc=0xffffffff;
+    for(const byte of bytes.subarray(offset+4,offset+8+len))
+      crc=(crc>>>8)^crcTable[(crc^byte)&255];
+    if(((crc^0xffffffff)>>>0)!==view.getUint32(offset+8+len,false))
+      reject("PNG Expo ka CRC të pavlefshëm.");
+    if(type==="IHDR"){
+      if(hasHeader||offset!==8||len!==13)reject("PNG Expo ka IHDR të pavlefshëm.");
+      const width=view.getUint32(offset+8,false),height=view.getUint32(offset+12,false);
+      const depth=bytes[offset+16],color=bytes[offset+17];
+      if(!width||!height||width*height>4194304 || depth!==8 ||
+          (color!==2&&color!==6) || bytes[offset+18]!==0 ||
+          bytes[offset+19]!==0 || bytes[offset+20]!==0)
+        reject("PNG Expo kërkon RGB/RGBA 8-bit pa interlace dhe me dimensione të kufizuara.");
+      stride=1+width*(color===6?4:3);
+      expected=stride*height;
+      if(expected>16*1024*1024)reject("PNG Expo tejkalon kufirin e pikselëve.");
+      hasHeader=true;
+    }else if(type==="IDAT"){
+      if(!hasHeader||idatClosed)reject("PNG Expo ka renditje IDAT të pavlefshme.");
+      hasImage=true;idat.push(bytes.subarray(offset+8,offset+8+len));
+    }else if(type==="IEND"){
+      if(!hasImage||len!==0||offset+12!==bytes.length)
+        reject("PNG Expo ka IEND të pavlefshëm.");
+      hasEnd=true;break;
+    }else{
+      if(!hasHeader || (type.charCodeAt(0)&32)===0)
+        reject("PNG Expo ka chunk kritik të pambështetur.");
+      if(hasImage)idatClosed=true;
+    }
+    offset+=12+len;
+  }
+  if(!hasHeader||!hasImage||!hasEnd)reject("PNG Expo është i paplotë.");
+  if(typeof DecompressionStream!=="function")
+    reject("Verifikimi i PNG kërkon DecompressionStream.");
+  let reader;
+  try{
+    reader=new Blob(idat).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+    let decoded=0;
+    while(true){
+      const {value,done}=await reader.read();
+      if(done)break;
+      if(decoded+value.length>expected)
+        reject("PNG Expo ka gjatësi rreshtash të pavlefshme.");
+      for(let i=0;i<value.length;i++){
+        if((decoded+i)%stride===0 && value[i]>4)
+          reject("PNG Expo ka filter të pavlefshëm në një rresht.");
+      }
+      decoded+=value.length;
+    }
+    if(decoded!==expected)reject("PNG Expo ka gjatësi rreshtash të pavlefshme.");
+  }catch(error){
+    if(/PNG Expo ka (gjatësi rreshtash|filter)/.test(String(error)))throw error;
+    reject("PNG Expo ka IDAT/zlib të pavlefshëm.");
+  }finally{
+    try{await reader?.cancel();}catch{}
+    try{reader?.releaseLock();}catch{}
+  }
+}
+export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"){
+  const all=entries(buffer),candidates=expoCandidateIndexes(all);
+  if(candidates.length!==1)
+    reject(candidates.length?"ZIP ka disa Expo Web builds.":"Nuk gjendet një Expo Web build i mbështetur me metadata.json.");
+  const index=candidates[0],prefix=index.slice(0,index.lastIndexOf("/")+1);
+  if([...all.keys()].some(path=>path!==index&&/(^|\/)index\.html$/i.test(path)))
+    reject("ZIP përmban disa HTML entrypoints.");
+  let metadata;
+  try{metadata=JSON.parse(decoder.decode(await getBytes(buffer,all.get(prefix+"metadata.json"),64*1024)));}
+  catch{reject("metadata.json Expo është i pavlefshëm.");}
+  if(!metadata || metadata.bundler!=="metro" || metadata.version!==0 ||
+      !metadata.fileMetadata || typeof metadata.fileMetadata!=="object" ||
+      Array.isArray(metadata.fileMetadata) || Object.keys(metadata.fileMetadata).length!==0)
+    reject("Profili Expo Web nuk mbështetet nga adapteri offline.");
+  const html=decoder.decode(await getBytes(buffer,all.get(index),MAX_HTML));
+  const scriptTags=[...html.matchAll(/<script\b[^>]*>/gi)];
+  const scripts=getAttribute(html,"script","src");
+  if(scriptTags.length!==1||scripts.length!==1||!EXPO_ENTRY.test(scripts[0])||
+      /<link\b[^>]*rel\s*=\s*["']stylesheet/i.test(html))
+    reject("Expo offline kërkon një Metro AppEntry klasik pa module/CSS të jashtme.");
+  const bundlePath=prefix+scripts[0].slice(1);
+  let code=decoder.decode(await getBytes(buffer,all.get(bundlePath),MAX_JS));
+  const allowed=new Set([index,prefix+"metadata.json",bundlePath,prefix+"THIRD_PARTY_NOTICES.txt"]);
+  const availableImages=[...all.keys()].filter(path=>path.startsWith(prefix+"assets/")&&
+    /\.png$/i.test(path));
+  if(availableImages.length>MAX_LOCAL_ASSETS)reject("Expo tejkalon kufirin e imazheve lokale.");
+  for(const path of availableImages)allowed.add(path);
+  if([...all.keys()].some(path=>!allowed.has(path)))
+    reject("Expo Web ZIP ka skedarë të pambështetur për profilin offline.");
+  const refs=[...code.matchAll(/uri:"(\/assets\/[^"\\]+)"/g)].map(m=>m[1]);
+  if(new Set(refs).size!==availableImages.length)
+    reject("Expo ka imazhe të papërdorura ose referenca të pambështetura.");
+  let total=0;
+  for(const ref of new Set(refs)){
+    if(!/^\/assets\/[A-Za-z0-9._/-]+\.png$/.test(ref) || ref.includes(".."))
+      reject("Expo ka referencë imazhi të pasigurt.");
+    const path=prefix+ref.slice(1);
+    if(!allowed.has(path) || !all.has(path))reject("Expo kërkon imazh lokal që mungon.");
+    const bytes=await getBytes(buffer,all.get(path),MAX_ASSET_BYTES);
+    total+=bytes.length;
+    if(total>MAX_TOTAL_ASSET_BYTES)reject("Expo tejkalon kufirin e imazheve.");
+    await verifyPngStructure(bytes);
+    code=code.replaceAll('uri:"'+ref+'"','uri:"data:image/png;base64,'+toBase64(bytes)+'"');
+  }
+  const policy="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'";
+  const srcDoc='<!doctype html><html><head><meta charset="utf-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<meta http-equiv="Content-Security-Policy" content="'+policy+'">'+
+    '<style>html,body,#root{height:100%;margin:0}#root{display:flex;min-height:100%}</style>'+
+    '</head><body><div id="root"></div><script>'+escapeTag(code,"script")+'</script></body></html>';
+  return {filename,indexPath:index,srcDoc,cssCount:0,localAssetCount:availableImages.length,
+    profile:"expo-metro-single-offline",
+    warning:"Expo Web preview offline i kufizuar: vetëm Metro single bundle dhe PNG lokale. Backend, Router dhe modulet dinamike nuk mbështeten."};
+}
+
+// Never offer a fake "preview prepared" for Vite's relative dynamic chunks.
+// PoF2.9 proved those via HTTP on distinct isolated origins, not srcDoc.
+// A future trusted static artifact service must supply that boundary explicitly.
+export async function buildSupportedWebPreview(buffer,filename="preview.zip"){
+  const all=entries(buffer);
+  if(expoCandidateIndexes(all).length ||
+      [...all.keys()].some(p=>/(^|\/)metadata\.json$/.test(p)&&
+        [...all.keys()].some(x=>x.includes("/_expo/static/js/web/AppEntry-"))))
+    return buildExpoWebArtifactPreview(buffer,filename);
+  const indexes=[...all.keys()].filter(p=>/(^|\/)(?:dist|build|out)\/index\.html$/i.test(p));
+  if(indexes.length===1){
+    const prefix=indexes[0].slice(0,indexes[0].lastIndexOf("/")+1);
+    const jsFiles=[...all.keys()].filter(p=>p.startsWith(prefix)&&/\.m?js$/i.test(p));
+    if(jsFiles.length>1)
+      reject("Vite me shumë JS chunks kërkon preview me origin HTTP të izoluar; ZIP offline srcDoc nuk e mbështet ende.");
+  }
+  return buildQuickPreview(buffer,filename);
+}
