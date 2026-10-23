@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  manifestUrl, parseManifest, transitionSync, initialSyncState, applyPendingSync, summarizeSync,
+  manifestUrl, parseManifest, readBoundedManifestText, transitionSync, initialSyncState, applyPendingSync, summarizeSync,
   SYNC_POLL_MS, FALLBACK_REFRESH_MS
 } from "../src/live-sync.js";
 
@@ -99,4 +99,77 @@ test("Network and authorization failures never force a frozen pending deployment
     assert.equal(failed.state.pendingRevision,"b");
     assert.equal(failed.state.displayedRevision,"a");
   }
+});
+
+const utf8 = text => new TextEncoder().encode(text);
+const streamResponse = (chunks, header=null) => {
+  let reads=0, cancelled=0;
+  const reader={
+    async read(){reads++;return chunks.length?{value:chunks.shift(),done:false}:{done:true}},
+    async cancel(){cancelled++},
+    releaseLock(){}
+  };
+  return {
+    response:{headers:{get:()=>header},body:{getReader:()=>reader}},
+    get reads(){return reads},get cancelled(){return cancelled}
+  };
+};
+test("bounded manifest reader: exact 16384 UTF-8 bytes accepted, even with split codepoints",async()=>{
+  const body="a".repeat(16380)+"😀";
+  assert.equal(utf8(body).byteLength,16384);
+  const bytes=utf8(body);
+  const mock=streamResponse([bytes.slice(0,16382),bytes.slice(16382)],null);
+  assert.equal(await readBoundedManifestText(mock.response),body);
+  assert.equal(mock.cancelled,0);
+});
+test("bounded reader cancels at first oversized chunk and never reads remaining stream",async()=>{
+  const mock=streamResponse([utf8("a".repeat(8000)),utf8("b".repeat(9000)),utf8("should-not-read")]);
+  assert.equal(await readBoundedManifestText(mock.response),null);
+  assert.equal(mock.cancelled,1);
+  assert.equal(mock.reads,2);
+});
+test("unknown/misleading Content-Length cannot bypass the actual byte cap",async()=>{
+  for(const header of [null,"8","not-a-number","-1"]){
+    const mock=streamResponse([utf8("a".repeat(16000)),utf8("b".repeat(400))],header);
+    assert.equal(await readBoundedManifestText(mock.response),null);
+    assert.equal(mock.cancelled,1);
+  }
+});
+test("oversized declared length skips reading altogether",async()=>{
+  const mock=streamResponse([utf8('{"revision":"valid"}')],"16385");
+  assert.equal(await readBoundedManifestText(mock.response),null);
+  assert.equal(mock.reads,0);
+  assert.equal(mock.cancelled,0);
+});
+test("UTF-8 multibyte manifest bound is based on bytes, not JS characters",async()=>{
+  const text="😀".repeat(4097);
+  assert.ok(text.length<=16384);
+  assert.ok(utf8(text).byteLength>16384);
+  const mock=streamResponse([utf8(text)]);
+  assert.equal(await readBoundedManifestText(mock.response),null);
+  assert.equal(mock.cancelled,1);
+});
+test("reader refuses non-streaming responses rather than buffering response.text()",async()=>{
+  let textCalled=false;
+  const response={headers:{get:()=>null},body:null,text:async()=>{textCalled=true;return "unbounded"}};
+  assert.equal(await readBoundedManifestText(response),null);
+  assert.equal(textCalled,false);
+});
+test("reader propagates aborted stream and cancels without publishing a revision",async()=>{
+  let cancelled=false,released=false;
+  const reader={
+    read:async()=>{const e=new Error("request aborted");e.name="AbortError";throw e},
+    cancel:async()=>{cancelled=true},
+    releaseLock:()=>{released=true}
+  };
+  const response={headers:{get:()=>null},body:{getReader:()=>reader}};
+  await assert.rejects(readBoundedManifestText(response),{name:"AbortError"});
+  assert.equal(cancelled,true);assert.equal(released,true);
+});
+test("reader validates successful streaming JSON and propagates invalid UTF-8",async()=>{
+  const value='{"revision":"build-ok","builtAt":"2026-10-23T18:00:00Z"}';
+  const good=streamResponse([utf8(value).slice(0,8),utf8(value).slice(8)],null);
+  assert.equal(parseManifest(JSON.parse(await readBoundedManifestText(good.response))).revision,"build-ok");
+  const bad=streamResponse([new Uint8Array([0xc3,0x28])],null);
+  await assert.rejects(readBoundedManifestText(bad.response),/encoded|valid|UTF-8/i);
 });
