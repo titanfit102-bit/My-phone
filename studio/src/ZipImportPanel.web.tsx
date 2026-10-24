@@ -57,14 +57,14 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
   return <View style={styles.panel}>
     <Text style={styles.title}>QUICK PREVIEW NGA ZIP</Text>
     <Text style={styles.description}>Ngarko vetëm ZIP që i beson dhe zotëron. Navigimi i iframe-it mund të nisë kërkesa rrjeti; ky nuk është sandbox i plotë kundër kodit armiqësor. Ngarko ZIP-in e shkarkuar nga GitHub. Mbështet Web build-e të kufizuara: Vite me një JS bundle ose Expo Metro single bundle me PNG lokale. Vite me dynamic chunks kërkon origin HTTP të izoluar dhe ende nuk hapet offline. Backend-i nuk niset.</Text>
-    <Pressable accessibilityRole="button" onPress={pick} disabled={busy} style={styles.button}>
+    <Pressable accessibilityRole="button" accessibilityState={{disabled:busy}} onPress={pick} disabled={busy} style={styles.button}>
       <Text style={styles.buttonText}>{busy?"Po lexohet ZIP...":"↑ Ngarko ZIP"}</Text>
     </Pressable>
     {(active||busy)&&<Pressable accessibilityRole="button" onPress={close} style={styles.close}>
       <Text style={styles.closeText}>✕ Mbyll Quick Preview</Text>
     </Pressable>}
-    {!!message&&<Text style={styles.status}>{message}</Text>}
-    {assessment&&<View style={styles.engineBox}>
+    {!!message&&<Text accessibilityLiveRegion="polite" style={styles.status}>{message}</Text>}
+    {assessment&&<View accessibilityLiveRegion="polite" style={styles.engineBox}>
       <Text style={styles.engineTitle}>ENGINE CORE · {assessment.decision.code}</Text>
       <Text style={styles.engineDetail}>{assessment.source.framework}</Text>
       {assessment.decision.status!=="failed"&&<Text style={styles.engineDetail}>{assessment.diagnostics[0].detail}</Text>}
