@@ -1,4 +1,4 @@
-name: A02 browser-only preinstalled Chromium proof (non-release)
+name: A02 browser quick install proof (non-release)
 
 on:
   push:
@@ -11,8 +11,6 @@ jobs:
   a02-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 18
-    container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
     defaults:
       run:
         working-directory: studio
@@ -24,12 +22,15 @@ jobs:
         run: |
           node --version
           npm --version
-          test -d /ms-playwright
+          echo 'Using GitHub Ubuntu runner browser libraries'
       - name: Install exact project dependencies
         run: npm ci --no-audit --no-fund
+      - name: Install Chromium without OS package changes
+        run: npx playwright install chromium
       - name: Target A02 cancellation in desktop and mobile browser
-        run: npx playwright test --grep "A02: declared oversized manifest"
+        run: npx playwright test --grep 'A02: declared oversized manifest'
       - name: Node integration for A02
         run: node --test tests/live-sync.test.mjs
       - name: Explicit non-release proof
-        run: echo "Browser regression only; unchanged standard security gate remains blocking, no merge/deployment."
+        run: |
+          echo "Browser regression only; standard audit gate remains blocking."
