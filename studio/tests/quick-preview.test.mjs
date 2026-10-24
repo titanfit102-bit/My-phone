@@ -16,6 +16,8 @@ test("ZIP built assets are decoded and embedded in opaque iframe HTML",async()=>
   assert.match(result.srcDoc,/root\{color:teal\}/);
   assert.match(result.srcDoc,/localStorage/);
   assert.match(result.srcDoc,/connect-src 'none'/);
+  assert.match(result.srcDoc,/frame-src 'none'/);
+  assert.match(result.srcDoc,/worker-src 'none'/);
   assert.equal(result.indexPath,"myapp-main/dist/index.html");
   assert.equal(result.filename,"demo.zip");
 });
