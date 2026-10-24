@@ -28,7 +28,8 @@ jobs:
       - name: Install Chromium without OS package changes
         run: npx playwright install chromium
       - name: Target A02 cancellation in desktop and mobile browser
-        run: npx playwright test --grep 'A02: declared oversized manifest'
+        run: |
+          npx playwright test --grep "A02: declared oversized manifest"
       - name: Node integration for A02
         run: node --test tests/live-sync.test.mjs
       - name: Explicit non-release proof
