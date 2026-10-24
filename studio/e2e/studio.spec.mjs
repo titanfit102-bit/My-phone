@@ -287,6 +287,92 @@ test("corrupt preexisting registry is not silently erased on startup",async ({pa
   expect(raw).toBe("{damaged original");
 });
 
+
+test("A07: oversized legacy registry downloads unchanged and requires consent before recovery",async ({page})=>{
+  const legacy=JSON.stringify([{
+    id:"project-legacy-long",name:"Legacy Long",
+    github:GITHUB,web:MOCK_APP+"/?pad="+"a".repeat(9000),native:""
+  }]);
+  await page.addInitScript(raw=>{
+    if(!sessionStorage.getItem("legacy-seeded")){
+      localStorage.setItem("my-phone-studio-projects-v1",raw);
+      sessionStorage.setItem("legacy-seeded","yes");
+    }
+  },legacy);
+  await mockApplication(page);
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText("nuk lexohen");
+  await expect(page.getByRole("button",{name:"Hap Legacy Long"})).toHaveCount(0);
+
+  const [download]=await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button",{name:"↓ Shkarko regjistrin origjinal"}).click()
+  ]);
+  expect(download.suggestedFilename()).toBe("my-phone-studio-regjistri-origjinal.txt");
+  const {readFile}=await import("node:fs/promises");
+  assertStringEqual(await readFile(await download.path(),"utf8"),legacy);
+
+  const replacement={
+    id:"project-recovered-one",name:"Recovered One",
+    github:GITHUB,web:MOCK_APP,native:""
+  };
+  const [picker]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Importo backup JSON"}).click()
+  ]);
+  await picker.setFiles({name:"replacement.json",mimeType:"application/json",
+    buffer:Buffer.from(JSON.stringify({format:"my-phone-studio-backup-v1",projects:[replacement]}))});
+  await expect(page.getByText("Rikuperim me konfirmim")).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1"))).toBe(legacy);
+  expect(await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1-unreadable-original-v1"))).toBeNull();
+  await page.getByRole("button",{name:"Konfirmo rikuperimin"}).click();
+  await expect(page.getByRole("button",{name:"Hap Recovered One"})).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1-unreadable-original-v1"))).toBe(legacy);
+  await page.reload();
+  await expect(page.getByRole("button",{name:"Hap Recovered One"})).toBeVisible();
+  const [after]=await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button",{name:"↓ Shkarko regjistrin origjinal"}).click()
+  ]);
+  assertStringEqual(await readFile(await after.path(),"utf8"),legacy);
+});
+
+test("A07: recovery quota failure preserves unreadable original and rejects replacement",async ({page})=>{
+  const raw="{legacy corrupted";
+  await page.addInitScript(original=>{
+    if(!sessionStorage.getItem("legacy-seeded")){
+      localStorage.setItem("my-phone-studio-projects-v1",original);
+      sessionStorage.setItem("legacy-seeded","yes");
+    }
+    const orig=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(key,value){
+      if(key==="my-phone-studio-projects-v1-unreadable-original-v1")
+        throw new DOMException("Quota exceeded","QuotaExceededError");
+      return orig.call(this,key,value);
+    };
+  },raw);
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText("nuk lexohen");
+  const [picker]=await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button",{name:"↑ Importo backup JSON"}).click()
+  ]);
+  await picker.setFiles({name:"backup.json",mimeType:"application/json",
+    buffer:Buffer.from(JSON.stringify({format:"my-phone-studio-backup-v1",projects:[{
+      id:"project-restore-one",name:"Replacement",github:GITHUB,web:MOCK_APP,native:""
+    }]}))});
+  await expect(page.getByText("Rikuperim me konfirmim")).toBeVisible();
+  await page.getByRole("button",{name:"Konfirmo rikuperimin"}).click();
+  await expect(page.getByText(/Rikuperimi u ndal/)).toBeVisible();
+  await expect(page.getByRole("button",{name:"Hap Replacement"})).toHaveCount(0);
+  expect(await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1"))).toBe(raw);
+  expect(await page.evaluate(()=>localStorage.getItem("my-phone-studio-projects-v1-unreadable-original-v1"))).toBeNull();
+});
+
+function assertStringEqual(actual,expected) {
+  expect(actual).toBe(expected);
+}
+
 test("a validated JSON backup can restore projects using the browser file chooser",async ({page})=>{
   const project={
     id:"project-import-demo",name:"Restored Demo",
