@@ -81,7 +81,7 @@ test("A06: full registry rejects 101st, permits edit at 100, and refuses overflo
   await createProject(page,"Overflow 101");
   await expect(page.getByRole("alert")).toContainText("maksimumi 100");
   await expect(page.getByRole("button",{name:"Hap Overflow 101"})).toHaveCount(0);
-  await page.getByRole("button",{name:"×",exact:true}).click();
+  await page.getByRole("button",{name:"Mbyll formularin"}).click();
   const [chooser]=await Promise.all([
     page.waitForEvent("filechooser"),
     page.getByRole("button",{name:"↑ Importo backup JSON"}).click()
