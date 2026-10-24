@@ -1,0 +1,104 @@
+name: PoF2.10 official Expo ZIP regression on PR25 code
+on:
+  push:
+    branches: [feat/a07-official-expo-zip-proof]
+    paths: ["studio/**", ".github/workflows/a07-official-expo-zip-proof.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: a07-pof210-official-expo-zip
+  cancel-in-progress: true
+jobs:
+  official-expo-studio-import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Studio PR branch read-only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Checkout immutable public synthetic Expo fixture
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: titanfit102-bit/my-phone-pof-validation
+          ref: 93fef989cd9f752b135fb466a09b24c97f1dd10e
+          path: pof-validation
+          persist-credentials: false
+      - name: Use Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Verify immutable synthetic input SHA-256
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          base=Path("pof-validation")
+          checks=json.loads((base/"fixture_sha256.json").read_text())["files"]
+          for path,digest in checks.items():
+            assert hashlib.sha256((base/path).read_bytes()).hexdigest()==digest,path
+          print("PASS synthetic source SHA-256:",len(checks))
+          PY
+      - name: Build official Expo CLI Web output with fresh fixture lockfile
+        working-directory: pof-validation/fixtures/expo
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run export:web
+          test -s dist/index.html
+          npm ls --depth=0
+      - name: ZIP complete official Expo artifact under dist
+        run: |
+          mkdir -p proof
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile,ZIP_DEFLATED
+          import hashlib,json
+          root=Path("pof-validation/fixtures/expo/dist")
+          archive=Path("proof/official-expo-web.zip")
+          inventory={}
+          with ZipFile(archive,"w",ZIP_DEFLATED) as zip:
+            for item in sorted(root.rglob("*")):
+              if item.is_file() and not item.is_symlink():
+                name="dist/"+item.relative_to(root).as_posix()
+                zip.write(item,arcname=name)
+                inventory[name]=hashlib.sha256(item.read_bytes()).hexdigest()
+          with ZipFile(archive) as zip:
+            assert zip.testzip() is None
+          lock=Path("pof-validation/fixtures/expo/package-lock.json")
+          manifest={"fixture_commit":"93fef989cd9f752b135fb466a09b24c97f1dd10e",
+            "lock_sha256":hashlib.sha256(lock.read_bytes()).hexdigest(),
+            "zip_sha256":hashlib.sha256(archive.read_bytes()).hexdigest(),
+            "files":inventory}
+          Path("proof/manifest.json").write_text(json.dumps(manifest,indent=2))
+          print("Official Expo Web ZIP files:",len(inventory),"size:",archive.stat().st_size)
+          PY
+      - name: Install Studio deps and export this PR
+        working-directory: studio
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check:config
+          npm run typecheck
+          npm run export:web
+      - name: Install Playwright browser
+        working-directory: studio
+        run: npx playwright install chromium
+      - name: Run official ZIP import in real Studio desktop/mobile
+        working-directory: studio
+        env:
+          MY_PHONE_OFFICIAL_EXPO_ZIP: ../proof/official-expo-web.zip
+        run: npx playwright test e2e/official-expo-pof29-real.spec.mjs
+      - name: Preserve bounded review evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: a07-pof210-official-zip-reproducible-evidence
+          path: |
+            proof/manifest.json
+            proof/official-expo-web.zip
+            pof-validation/fixtures/expo/package-lock.json
+            studio/test-results/
+            studio/playwright-report/
+          if-no-files-found: warn
+          retention-days: 7
