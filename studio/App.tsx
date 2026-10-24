@@ -197,7 +197,7 @@ export default function App() {
         else if(response.status===401 || response.status===403) outcome={kind:"restricted"};
         else if(response.ok) {
           // Strict byte bound even for chunked responses without Content-Length.
-          const body = await readBoundedManifestText(response, MAX_MANIFEST_BYTES);
+          const body = await readBoundedManifestText(response, MAX_MANIFEST_BYTES, abort);
           if(body===null) outcome={kind:"unsupported"};
           else {
             let parsed = null;
