@@ -28,9 +28,12 @@ export function evaluateProofEvidence(report) {
   for(const ob of observations)
     if(!ob || typeof ob.name!=="string" || typeof ob.status!=="string")
       problems.push("malformed security observation");
+  if(observations.length===0)problems.push("no security observations provided");
   const evidenceValid=problems.length===0;
   const securityConcern=observations.some(o=>["FAIL","CRITICAL_LEAK","UNEXPECTED_RENDER"].includes(o?.status));
-  // A correct experiment can discover a vulnerability. Keep both truths.
-  return {evidenceValid,securityConcern,releaseReady:evidenceValid&&!securityConcern,
+  // A correct experiment can discover a vulnerability; no set of synthetic
+  // observations on its own authorizes production release.
+  const securityReview=securityConcern?"FINDING_REQUIRES_REVIEW":"NO_RECORDED_FAILURE";
+  return {evidenceValid,securityConcern,securityReview,
     problems,observationsCount:observations.length};
 }
