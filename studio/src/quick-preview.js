@@ -218,7 +218,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     styles.push(await inlineCssReferences(source,path,index,all,buffer,cache,budget));
   }
   const style=styles.join("\n");
-  const policy="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src blob: data:; font-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
+  const policy="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src blob: data:; font-src data: blob:; connect-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'";
   const srcDoc='<!doctype html><html><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
     '<meta http-equiv="Content-Security-Policy" content="'+policy+'">'+
@@ -227,7 +227,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     escapeTag(sessionStorageShim,"script")+'</script><script type="module">'+
     escapeTag(code,"script")+'</script></body></html>';
   return {filename,indexPath:index,srcDoc,cssCount:css.length,localAssetCount:cache.size,
-    warning:"Preview offline i përkohshëm: API/backend, asete të tjera nga JavaScript dhe module shtesë mund të mos funksionojnë."};
+    warning:"Vetëm ZIP i besuar: Quick Preview nuk ofron izolim të plotë rrjeti/CPU; navigimi i iframe-it mund të nisë kërkesa. API/backend dhe module të tjera mund të mos funksionojnë."};
 }
 
 
@@ -358,7 +358,7 @@ export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"
     await verifyPngStructure(bytes);
     code=code.replaceAll('uri:"'+ref+'"','uri:"data:image/png;base64,'+toBase64(bytes)+'"');
   }
-  const policy="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'";
+  const policy="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'";
   const srcDoc='<!doctype html><html><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
     '<meta http-equiv="Content-Security-Policy" content="'+policy+'">'+
@@ -366,7 +366,7 @@ export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"
     '</head><body><div id="root"></div><script>'+escapeTag(code,"script")+'</script></body></html>';
   return {filename,indexPath:index,srcDoc,cssCount:0,localAssetCount:availableImages.length,
     profile:"expo-metro-single-offline",
-    warning:"Expo Web preview offline i kufizuar: vetëm Metro single bundle dhe PNG lokale. Backend, Router dhe modulet dinamike nuk mbështeten."};
+    warning:"Vetëm ZIP Expo i besuar: izolimi i rrjetit dhe CPU-së nuk garantohet për navigim brenda iframe-it. Mbështeten vetëm Metro single bundle dhe PNG lokale, pa backend/Router."};
 }
 
 // Never offer a fake "preview prepared" for Vite's relative dynamic chunks.
