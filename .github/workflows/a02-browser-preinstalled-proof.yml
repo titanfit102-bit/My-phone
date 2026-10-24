@@ -25,6 +25,8 @@ jobs:
           echo 'Using GitHub Ubuntu runner browser libraries'
       - name: Install exact project dependencies
         run: npm ci --no-audit --no-fund
+      - name: Generate Expo Web dist before Playwright webServer
+        run: npm run export:web
       - name: Install Chromium without OS package changes
         run: npx playwright install chromium
       - name: Target A02 cancellation in desktop and mobile browser
