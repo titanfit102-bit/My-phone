@@ -347,10 +347,10 @@ export default function App() {
           <View style={styles.leftModeControls}>
             <Text style={styles.overline}>02 / ZGJIDH PREVIEW</Text>
           <View style={styles.modeSwitcher}>
-            <Pressable accessibilityRole="button" accessibilityState={{selected:currentMode==="web"}} onPress={()=>{invalidateZipContext();setMode("web");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" accessibilityHint={currentMode==="web"?"Modaliteti aktiv":"Aktivizo Expo Web Preview"} onPress={()=>{invalidateZipContext();setMode("web");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="web"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="web"&&styles.modeLabelActive]}>◈ Expo Web Preview</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityState={{selected:currentMode==="native"}} onPress={()=>{invalidateZipContext();setMode("native");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" accessibilityHint={currentMode==="native"?"Modaliteti aktiv":"Aktivizo Android Cloud APK"} onPress={()=>{invalidateZipContext();setMode("native");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="native"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="native"&&styles.modeLabelActive]}>▣ Android Cloud APK</Text></Pressable>
           </View>
@@ -383,7 +383,7 @@ export default function App() {
             <RoundButton label="+ Lidh aplikacionin" primary onPress={addNew}/>
           </View>}
           {projects.map(project=><Pressable key={project.id} onPress={()=>pick(project)}
-            accessibilityRole="button" accessibilityLabel={"Hap " + project.name} accessibilityState={{selected:selected===project.id}}
+            accessibilityRole="button" accessibilityLabel={"Hap " + project.name} accessibilityHint={selected===project.id?"Projekti aktiv":"Zgjidh këtë projekt"}
             style={[styles.projectCard,selected===project.id&&styles.projectCardActive]}>
             <View style={styles.projectRow}>
               <View style={[styles.projectIcon,selected===project.id&&styles.projectIconActive]}>
