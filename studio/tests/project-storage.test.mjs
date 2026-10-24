@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {BACKUP_FORMAT, MAX_BACKUP_BYTES, MAX_PROJECTS,
   validateProjectList, readProjectRegistry, writeProjectRegistry,
-  serializeProjectBackup, parseProjectBackup
+  serializeProjectBackup, parseProjectBackup, ORIGINAL_REGISTRY_KEY,
+  readUnreadableRegistryRaw, readPreservedOriginalRaw, recoverUnreadableRegistry
 } from "../src/project-storage.js";
 import {STORAGE_KEY, newProject, utf8ByteLength} from "../src/project-model.js";
 
@@ -127,3 +128,91 @@ test("A07: backup parser permits exactly 200000 UTF-8 bytes but refuses 200001",
   assert.deepEqual(parseProjectBackup(exact),[fixture()]);
   assert.throws(()=>parseProjectBackup(exact+"x"),/tepër e madhe/);
 });
+
+const registryStore = (raw, {failRecovery=false,failActive=false}={}) => {
+  const values=new Map([[STORAGE_KEY,raw]]);
+  const writes=[];
+  const storage={
+    getItem:key=>values.get(key)??null,
+    setItem:(key,value)=>{
+      writes.push(key);
+      if ((key===ORIGINAL_REGISTRY_KEY&&failRecovery)||
+          (key===STORAGE_KEY&&failActive))
+        throw Error("QuotaExceededError");
+      values.set(key,value);
+    }
+  };
+  return {storage,values,writes};
+};
+
+test("A07 legacy: oversized valid JSON remains untouched and raw is downloadable",()=>{
+  const legacy=JSON.stringify([{...fixture(),web:"https://demo.example.test/?q="+"a".repeat(9000)}]);
+  const {storage,values,writes}=registryStore(legacy);
+  assert.equal(readProjectRegistry(storage).reason,"unreadable");
+  assert.equal(readUnreadableRegistryRaw(storage),legacy);
+  assert.equal(readPreservedOriginalRaw(storage),null);
+  assert.deepEqual(writes,[]);
+  assert.equal(values.get(STORAGE_KEY),legacy);
+});
+
+test("A07 legacy: oversized aggregate registry is recovered only after verified original snapshot",()=>{
+  const legacy=manyProjects(100,1950);
+  const raw=JSON.stringify(legacy);
+  const {storage,values,writes}=registryStore(raw);
+  assert.equal(readProjectRegistry(storage).reason,"unreadable");
+  assert.equal(readUnreadableRegistryRaw(storage),raw);
+  const safe=[fixture()];
+  const result=recoverUnreadableRegistry(storage,raw,safe);
+  assert.deepEqual(result,{ok:true,reason:null});
+  assert.deepEqual(writes,[ORIGINAL_REGISTRY_KEY,STORAGE_KEY]);
+  assert.equal(readPreservedOriginalRaw(storage),raw);
+  assert.equal(values.get(ORIGINAL_REGISTRY_KEY),raw);
+  assert.deepEqual(readProjectRegistry(storage).projects,safe);
+});
+
+test("A07 legacy: quota or conflicting recovery key never overwrites original",()=>{
+  const raw="{original broken JSON";
+  for (const params of [{failRecovery:true},{failActive:true}]){
+    const {storage,values}=registryStore(raw,params);
+    const result=recoverUnreadableRegistry(storage,raw,[fixture()]);
+    assert.equal(result.ok,false);
+    assert.equal(values.get(STORAGE_KEY),raw);
+    if(params.failActive)assert.equal(values.get(ORIGINAL_REGISTRY_KEY),raw);
+  }
+  const {storage,values,writes}=registryStore(raw);
+  values.set(ORIGINAL_REGISTRY_KEY,"{different recovery}");
+  const result=recoverUnreadableRegistry(storage,raw,[fixture()]);
+  assert.deepEqual(result,{ok:false,reason:"original_conflict"});
+  assert.equal(values.get(STORAGE_KEY),raw);
+  assert.equal(values.get(ORIGINAL_REGISTRY_KEY),"{different recovery}");
+  assert.deepEqual(writes,[]);
+});
+
+test("A07 legacy: source race and invalid replacement fail without writing",()=>{
+  const {storage,values,writes}=registryStore("{broken");
+  assert.deepEqual(recoverUnreadableRegistry(storage,"{old value",[fixture()]),
+    {ok:false,reason:"source_changed"});
+  assert.equal(values.get(STORAGE_KEY),"{broken");
+  assert.deepEqual(writes,[]);
+  assert.throws(()=>validateProjectList(manyProjects(101)),/maksimumi 100/);
+  assert.equal(recoverUnreadableRegistry(storage,"{broken",manyProjects(101)).ok,false);
+  assert.deepEqual(writes,[]);
+  // Valid registries cannot be accidentally replaced via legacy recovery.
+  values.set(STORAGE_KEY,JSON.stringify([fixture()]));
+  assert.equal(readUnreadableRegistryRaw(storage),null);
+  assert.deepEqual(recoverUnreadableRegistry(storage,values.get(STORAGE_KEY),[]),
+    {ok:false,reason:"source_changed"});
+  assert.deepEqual(readProjectRegistry(storage).projects,[fixture()]);
+});
+
+test("A07 legacy: recovering twice never overwrites preserved original",()=>{
+  const raw="{old corrupt JSON";
+  const {storage,values,writes}=registryStore(raw);
+  assert.equal(recoverUnreadableRegistry(storage,raw,[fixture()]).ok,true);
+  assert.equal(readPreservedOriginalRaw(storage),raw);
+  const second=recoverUnreadableRegistry(storage,raw,[]);
+  assert.equal(second.ok,false);
+  assert.equal(values.get(ORIGINAL_REGISTRY_KEY),raw);
+  assert.deepEqual(writes,[ORIGINAL_REGISTRY_KEY,STORAGE_KEY]);
+});
+
