@@ -56,7 +56,7 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>QUICK PREVIEW NGA ZIP</Text>
-    <Text style={styles.description}>Ngarko ZIP-in e shkarkuar nga GitHub. Mbështet Web build-e të kufizuara: Vite me një JS bundle ose Expo Metro single bundle me PNG lokale. Vite me dynamic chunks kërkon origin HTTP të izoluar dhe ende nuk hapet offline. Backend-i nuk niset.</Text>
+    <Text style={styles.description}>Ngarko vetëm ZIP që i beson dhe zotëron. Navigimi i iframe-it mund të nisë kërkesa rrjeti; ky nuk është sandbox i plotë kundër kodit armiqësor. Ngarko ZIP-in e shkarkuar nga GitHub. Mbështet Web build-e të kufizuara: Vite me një JS bundle ose Expo Metro single bundle me PNG lokale. Vite me dynamic chunks kërkon origin HTTP të izoluar dhe ende nuk hapet offline. Backend-i nuk niset.</Text>
     <Pressable accessibilityRole="button" onPress={pick} disabled={busy} style={styles.button}>
       <Text style={styles.buttonText}>{busy?"Po lexohet ZIP...":"↑ Ngarko ZIP"}</Text>
     </Pressable>
@@ -70,7 +70,7 @@ export default function ZipImportPanel({onPreview}:{onPreview:(value:QuickPrevie
       {assessment.decision.status!=="failed"&&<Text style={styles.engineDetail}>{assessment.diagnostics[0].detail}</Text>}
       <Text style={styles.engineNext}>{assessment.diagnostics[0].nextAction}</Text>
     </View>}
-    <Text style={styles.note}>Vetëm në këtë seancë. Pa server, pa instalim, pa ruajtje të ZIP-it. Nuk ekzekuton backend apo kod burimor.</Text>
+    <Text style={styles.note}>Preview ruhet vetëm në RAM, pa instalim ose backend; por JavaScript i ZIP-it ekzekutohet brenda iframe-it. Nuk garantohen ndalimi i navigimit të vetë iframe-it, izolim i plotë rrjeti apo kufij CPU. Përdor vetëm build-e të besuara.</Text>
   </View>;
 }
 const styles=StyleSheet.create({
