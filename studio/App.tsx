@@ -460,7 +460,7 @@ export default function App() {
               <RoundButton label="↻ Rifresko" onPress={()=>quickPreview?setQuickPreview(value=>value?{...value,serial:value.serial+1}:null):manualRefresh()}/></View>
           </View>
           <View style={styles.stageNote}><Text style={styles.stageNoteText}>
-            {quickPreview ? "Quick Preview i izoluar, offline. Asnjë ZIP nuk ruhet; backend/API dhe disa media mund të mungojnë."
+            {quickPreview ? "Quick Preview i përkohshëm në iframe me origjinë opake. Vetëm ZIP të besuar: navigimi mund të nisë kërkesa rrjeti dhe CPU nuk është e izoluar. Asnjë ZIP nuk ruhet."
               :currentMode==="native"
               ?"APK-ja ekzekutohet në Appetize pasi të jetë ngarkuar aty. Nisja e sesionit mund të konsumojë minuta me pagesë."
               :freezeEnabled
@@ -512,7 +512,7 @@ export default function App() {
               <View style={styles.greenDot}/><Text style={styles.statusText}>{quickPreview?"Quick Preview · sesion privat, pa ruajtje":current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
               {!quickPreview&&current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
               {!quickPreview&&currentMode==="web"&&current&&previewUrl&&<Text style={styles.infoSmall}>Nëse iframe është bosh ose i bllokuar nga CSP/X-Frame-Options, hape jashtë Studios. URL e lidhur nuk provon ngarkim të suksesshëm.</Text>}
-              <Text style={styles.infoSmall}>{quickPreview?"ZIP vetëm në RAM · offline":currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
+              <Text style={styles.infoSmall}>{quickPreview?"ZIP vetëm në RAM · sandbox i kufizuar":currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
               {!quickPreview&&currentMode==="web"&&syncEnabled&&<RoundButton label={freezeEnabled?"Çaktivizo Session Freeze":"Aktivizo Session Freeze"} onPress={toggleFreeze}/>}
               {!quickPreview&&currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}
               {lastUpdate&&<Text style={styles.infoSmall}>Rifreskimi i fundit: {lastUpdate}</Text>}
