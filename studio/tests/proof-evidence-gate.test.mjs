@@ -14,12 +14,12 @@ const good=()=>({format:PROOF_FORMAT,experimentExecuted:true,controls:[
 test("A04: valid experiment and security verdict are separate axes",()=>{
   const normal=evaluateProofEvidence(good());
   assert.deepEqual({evidenceValid:normal.evidenceValid,securityConcern:normal.securityConcern,
-    releaseReady:normal.releaseReady},{evidenceValid:true,securityConcern:false,releaseReady:true});
+    securityReview:normal.securityReview},{evidenceValid:true,securityConcern:false,securityReview:"NO_RECORDED_FAILURE"});
   const critical=good();critical.observations[0].status="CRITICAL_LEAK";
   const leak=evaluateProofEvidence(critical);
   assert.equal(leak.evidenceValid,true);
   assert.equal(leak.securityConcern,true);
-  assert.equal(leak.releaseReady,false);
+  assert.equal(leak.securityReview,"FINDING_REQUIRES_REVIEW");
 });
 
 test("A04: missing, duplicated or failed deliberate-fault positives fail closed",()=>{
