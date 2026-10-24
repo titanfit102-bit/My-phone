@@ -8,7 +8,8 @@ import ZipImportPanel from "./src/ZipImportPanel";
 import type {QuickPreview} from "./src/ZipImportPanel.web";
 import {newProject, chooseMode, freshWebUrl} from "./src/project-model";
 import {readProjectRegistry, writeProjectRegistry, serializeProjectBackup,
-  parseProjectBackup, validateProjectList, MAX_BACKUP_BYTES} from "./src/project-storage";
+  parseProjectBackup, validateProjectList, MAX_BACKUP_BYTES,
+  readUnreadableRegistryRaw, readPreservedOriginalRaw, recoverUnreadableRegistry} from "./src/project-storage";
 import {
   SYNC_POLL_MS, FALLBACK_REFRESH_MS, FETCH_TIMEOUT_MS, MAX_MANIFEST_BYTES,
   manifestUrl, parseManifest, readBoundedManifestText, initialSyncState, transitionSync, applyPendingSync, summarizeSync
@@ -82,6 +83,9 @@ export default function App() {
   const writableRegistry = useRef(false);
   const [registryWarning,setRegistryWarning] = useState("");
   const [backupMessage,setBackupMessage] = useState("");
+  const [unreadableRegistry,setUnreadableRegistry] = useState(false);
+  const [preservedOriginal,setPreservedOriginal] = useState(false);
+  const [pendingRecovery,setPendingRecovery] = useState<{raw:string;projects:Project[]}|null>(null);
   const [revision,setRevision] = useState(1);
   const [syncEnabled,setSyncEnabled] = useState(true);
   const [freezeEnabled,setFreezeEnabled] = useState(false);
@@ -94,6 +98,8 @@ export default function App() {
     if(!isWeb) {setLoaded(true);return;}
     const result = readProjectRegistry(browserStorage());
     writableRegistry.current = result.ok;
+    setUnreadableRegistry(result.reason==="unreadable");
+    setPreservedOriginal(readPreservedOriginalRaw(browserStorage())!==null);
     setProjects(result.projects);
     setSelected(result.projects[0]?.id || null);
     if(!result.ok) setRegistryWarning(
@@ -109,9 +115,43 @@ export default function App() {
       "Ruajtja lokale dështoi. Projektet shfaqen vetëm në këtë seancë; shkarko një kopje JSON.");
   },[loaded,projects]);
 
+  const downloadOriginalRegistry=()=>{
+    if(!isWeb || typeof document==="undefined") return;
+    const storage=browserStorage();
+    const raw=readUnreadableRegistryRaw(storage)??readPreservedOriginalRaw(storage);
+    if(raw===null) {setBackupMessage("Regjistri origjinal nuk është i disponueshëm.");return;}
+    try {
+      const url=URL.createObjectURL(new Blob([raw],{type:"text/plain;charset=utf-8"}));
+      const anchor=document.createElement("a");
+      anchor.href=url;anchor.download="my-phone-studio-regjistri-origjinal.txt";
+      document.body.appendChild(anchor);anchor.click();anchor.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setBackupMessage("Regjistri origjinal u përgatit për shkarkim pa ndryshuar ruajtjen lokale.");
+    } catch {setBackupMessage("Shkarkimi i regjistrit origjinal dështoi.");}
+  };
+
+  const confirmRecovery=()=>{
+    if(!pendingRecovery) return;
+    const outcome=recoverUnreadableRegistry(browserStorage(),pendingRecovery.raw,pendingRecovery.projects);
+    if(!outcome.ok) {
+      setPendingRecovery(null);
+      setBackupMessage("Rikuperimi u ndal ("+outcome.reason+"). Regjistri origjinal nuk u fshi. Shkarko kopjen dhe kontrollo hapësirën lokale.");
+      return;
+    }
+    writableRegistry.current=true;
+    setUnreadableRegistry(false);
+    setPreservedOriginal(true);
+    setRegistryWarning("");
+    invalidateZipContext();
+    setProjects(pendingRecovery.projects);
+    setSelected(pendingRecovery.projects[0]?.id??null);
+    setPendingRecovery(null);
+    setBackupMessage("Rikuperimi përfundoi. Origjinali është ruajtur veçmas dhe mund të shkarkohet.");
+  };
   const exportBackup=()=>{
     if(!isWeb || typeof document==="undefined") return;
     try {
+      if(unreadableRegistry)throw new Error("Regjistri origjinal nuk është i lexueshëm.");
       const contents=serializeProjectBackup(projects);
       const url=URL.createObjectURL(new Blob([contents],{type:"application/json"}));
       const anchor=document.createElement("a");
@@ -127,6 +167,7 @@ export default function App() {
     input.type="file";input.accept=".json,application/json";
     input.onchange=async()=>{
       const file=input.files?.[0];if(!file)return;
+      setPendingRecovery(null);
       try {
         if(file.size>MAX_BACKUP_BYTES)throw new Error("Skedari tejkalon kufirin e sigurisë.");
         const imported=parseProjectBackup(await file.text()) as Project[];
@@ -134,6 +175,13 @@ export default function App() {
         const merged=[...projects,...imported.filter(p=>!existing.has(p.id))];
         // Merge must also satisfy the same 100-item and backup-byte invariants.
         validateProjectList(merged);
+        if(unreadableRegistry) {
+          const raw=readUnreadableRegistryRaw(browserStorage());
+          if(raw===null)throw new Error("Regjistri origjinal ndryshoi ose nuk lexohet.");
+          setPendingRecovery({raw,projects:merged});
+          setBackupMessage("Backup është validuar. Asgjë nuk është mbishkruar. Shkarko origjinalin dhe konfirmo rikuperimin.");
+          return;
+        }
         const saved=writeProjectRegistry(browserStorage(),merged);
         if(!saved.ok)throw new Error("Importi nuk u ruajt; ndryshimet ekzistuese nuk u prekën.");
         writableRegistry.current=true;
@@ -313,6 +361,17 @@ export default function App() {
              setQuickPreview(value);if(value)setMode("web");
            }}/>
           {!!registryWarning&&<Text accessibilityRole="alert" style={styles.registryWarning}>{registryWarning}</Text>}
+          {(unreadableRegistry||preservedOriginal)&&<View style={styles.backupActions}>
+            <RoundButton label="↓ Shkarko regjistrin origjinal" onPress={downloadOriginalRegistry}/>
+          </View>}
+          {pendingRecovery&&<View style={styles.formPanel}>
+            <Text style={styles.formTitle}>Rikuperim me konfirmim</Text>
+            <Text style={styles.fieldHint}>Do të rikthehen {pendingRecovery.projects.length} projekte nga backup-i i vlefshëm. Regjistri i vjetër ruhet në një çelës tjetër të pajisjes përpara zëvendësimit. Nëse ruajtja e kopjes dështon, nuk zëvendësohet asgjë. Shkarko edhe kopjen origjinale për siguri.</Text>
+            <View style={styles.backupActions}>
+              <RoundButton label="Anulo rikuperimin" onPress={()=>{setPendingRecovery(null);setBackupMessage("Rikuperimi u anulua pa ndryshuar të dhënat.");}}/>
+              <RoundButton label="Konfirmo rikuperimin" danger onPress={confirmRecovery}/>
+            </View>
+          </View>}
           <View style={styles.backupActions}>
             <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>
             <RoundButton label="↑ Importo backup JSON" onPress={importBackup}/>
