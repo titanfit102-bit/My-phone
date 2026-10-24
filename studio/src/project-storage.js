@@ -3,6 +3,8 @@ import {STORAGE_KEY, newProject, utf8ByteLength} from "./project-model.js";
 export const BACKUP_FORMAT = "my-phone-studio-backup-v1";
 export const MAX_BACKUP_BYTES = 200_000;
 export const MAX_PROJECTS = 100;
+// Separate localStorage key, never reused for ordinary Studio writes.
+export const ORIGINAL_REGISTRY_KEY = STORAGE_KEY + "-unreadable-original-v1";
 // ISO timestamps always use 24 characters; reserve an identical-length stamp.
 const BACKUP_SIZE_STAMP = "2000-01-01T00:00:00.000Z";
 
@@ -47,6 +49,59 @@ export function writeProjectRegistry(storage, projects) {
     return {ok: true, reason: null};
   } catch {
     return {ok: false, reason: "write_failed"};
+  }
+}
+
+
+/**
+ * Returns the *original* localStorage string only when standard validation
+ * refuses it. Never coerce, sanitize, truncate or overwrite legacy data here.
+ */
+export function readUnreadableRegistryRaw(storage) {
+  try {
+    if (!storage || readProjectRegistry(storage).reason !== "unreadable") return null;
+    return storage.getItem(STORAGE_KEY);
+  } catch { return null; }
+}
+
+export function readPreservedOriginalRaw(storage) {
+  try { return storage?.getItem(ORIGINAL_REGISTRY_KEY) ?? null; }
+  catch { return null; }
+}
+
+/**
+ * Explicit recovery transaction for a user-reviewed, valid imported backup.
+ *
+ * Before touching the active key, store and read back the exact original value
+ * under a distinct immutable key. Fail closed on any quota, storage race or
+ * conflicting preserved copy. No legacy entry is silently transformed.
+ */
+export function recoverUnreadableRegistry(storage, expectedRaw, candidate) {
+  try {
+    const valid = validateProjectList(candidate);
+    if (!storage || typeof expectedRaw !== "string" ||
+        readProjectRegistry(storage).reason !== "unreadable" ||
+        storage.getItem(STORAGE_KEY) !== expectedRaw)
+      return {ok:false, reason:"source_changed"};
+    const savedOriginal = storage.getItem(ORIGINAL_REGISTRY_KEY);
+    if (savedOriginal !== null && savedOriginal !== expectedRaw)
+      return {ok:false, reason:"original_conflict"};
+    if (savedOriginal === null)
+      storage.setItem(ORIGINAL_REGISTRY_KEY, expectedRaw);
+    if (storage.getItem(ORIGINAL_REGISTRY_KEY) !== expectedRaw)
+      return {ok:false, reason:"preservation_failed"};
+
+    // Both copies are read from localStorage again before replacing the active
+    // key, guarding against a changed original during the recovery dialog.
+    if (storage.getItem(STORAGE_KEY) !== expectedRaw)
+      return {ok:false, reason:"source_changed"};
+    const result = writeProjectRegistry(storage, valid);
+    if (!result.ok) return {ok:false, reason:"write_failed"};
+    if (!readProjectRegistry(storage).ok)
+      return {ok:false, reason:"verify_failed"};
+    return {ok:true, reason:null};
+  } catch {
+    return {ok:false, reason:"preservation_failed"};
   }
 }
 
