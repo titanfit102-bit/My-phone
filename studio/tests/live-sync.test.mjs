@@ -110,7 +110,7 @@ const streamResponse = (chunks, header=null) => {
     releaseLock(){}
   };
   return {
-    response:{headers:{get:()=>header},body:{getReader:()=>reader}},
+    response:{headers:{get:()=>header},body:{getReader:()=>reader,async cancel(){cancelled++}}},
     get reads(){return reads},get cancelled(){return cancelled}
   };
 };
@@ -135,11 +135,48 @@ test("unknown/misleading Content-Length cannot bypass the actual byte cap",async
     assert.equal(mock.cancelled,1);
   }
 });
-test("oversized declared length skips reading altogether",async()=>{
+test("oversized declared length aborts network AND cancels unread body without reading",async()=>{
   const mock=streamResponse([utf8('{"revision":"valid"}')],"16385");
-  assert.equal(await readBoundedManifestText(mock.response),null);
+  const abort=new AbortController();
+  let aborts=0;
+  abort.signal.addEventListener("abort",()=>{aborts++});
+  assert.equal(await readBoundedManifestText(mock.response,16384,abort),null);
   assert.equal(mock.reads,0);
-  assert.equal(mock.cancelled,0);
+  assert.equal(mock.cancelled,1);
+  assert.equal(aborts,1);
+  assert.equal(abort.signal.aborted,true);
+});
+
+test("declared huge integer is rejected before allocating a body; malformed length is streamed safely",async()=>{
+  const giant=streamResponse([utf8("unread")],"999999999999999999999999999999999999");
+  const abort=new AbortController();
+  assert.equal(await readBoundedManifestText(giant.response,16384,abort),null);
+  assert.equal(giant.reads,0);
+  assert.equal(giant.cancelled,1);
+  assert.equal(abort.signal.aborted,true);
+  const malformed=streamResponse([utf8('{"revision":"good"}')],"not-numeric");
+  const accepted=new AbortController();
+  assert.equal(await readBoundedManifestText(malformed.response,16384,accepted),'{"revision":"good"}');
+  assert.equal(accepted.signal.aborted,false);
+  assert.equal(malformed.cancelled,0);
+});
+
+test("streamed oversize aborts network, cancels locked reader, never consumes later chunks",async()=>{
+  const mock=streamResponse([utf8("a".repeat(14000)),utf8("b".repeat(2600)),utf8("never-read")]);
+  const abort=new AbortController();
+  assert.equal(await readBoundedManifestText(mock.response,16384,abort),null);
+  assert.equal(abort.signal.aborted,true);
+  assert.equal(mock.reads,2);
+  assert.equal(mock.cancelled,1);
+});
+
+test("non-streaming response fails closed and aborts request without response.text()",async()=>{
+  const abort=new AbortController();
+  let textCalls=0;
+  const response={headers:{get:()=>null},body:null,text:async()=>{textCalls++;return "{}"}};
+  assert.equal(await readBoundedManifestText(response,16384,abort),null);
+  assert.equal(abort.signal.aborted,true);
+  assert.equal(textCalls,0);
 });
 test("UTF-8 multibyte manifest bound is based on bytes, not JS characters",async()=>{
   const text="😀".repeat(4097);
