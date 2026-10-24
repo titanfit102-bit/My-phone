@@ -6,19 +6,41 @@ export const FETCH_TIMEOUT_MS = 8000;
 export const MAX_MANIFEST_BYTES = 16384;
 
 /**
- * Read only a bounded number of UTF-8 BYTES from an untrusted deployment manifest.
- * Return null when the body is too large or cannot be streamed safely.
- * Network/abort/decode errors propagate to the existing unreachable fallback.
- * Streaming still receives one browser-provided chunk at a time; it cannot limit
- * that individual chunk allocation, but never buffers an unbounded whole body.
+ * Read at most maxBytes of untrusted manifest UTF-8. A bad/missing Content-Length
+ * is never trusted for acceptance: the actual stream is still byte-bounded.
+ * When rejecting early, cancel BOTH the request and its unread body so a large
+ * response does not continue consuming network resources after it is declined.
+ *
+ * The AbortController must be the same controller supplied to fetch(). Existing
+ * two-argument callers remain supported (the stream is still cancelled).
  */
-export async function readBoundedManifestText(response, maxBytes = MAX_MANIFEST_BYTES) {
+export async function readBoundedManifestText(
+  response, maxBytes = MAX_MANIFEST_BYTES, abortController
+) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
     throw new RangeError("Invalid manifest byte limit.");
+
+  function abandonUnreadBody() {
+    abortController?.abort();
+    try {
+      // No reader has been acquired. Avoid waiting for an untrusted producer.
+      const cancelled = response.body?.cancel?.();
+      if (cancelled && typeof cancelled.catch === "function")
+        void cancelled.catch(() => {});
+    } catch { /* Already aborted or an invalid stream. */ }
+  }
+
   const header = response.headers?.get?.("content-length");
   if (header !== null && header !== undefined && /^\d+$/.test(header.trim()) &&
-      BigInt(header.trim()) > BigInt(maxBytes)) return null;
-  if (!response.body || typeof response.body.getReader !== "function") return null;
+      BigInt(header.trim()) > BigInt(maxBytes)) {
+    abandonUnreadBody();
+    return null;
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    abandonUnreadBody();
+    return null;
+  }
+
   const reader = response.body.getReader();
   const parts = [];
   let used = 0;
@@ -28,7 +50,10 @@ export async function readBoundedManifestText(response, maxBytes = MAX_MANIFEST_
       const {value, done} = await reader.read();
       if (done) {complete = true; break;}
       if (!(value instanceof Uint8Array)) throw new TypeError("Non-byte manifest stream.");
-      if (value.byteLength > maxBytes - used) return null;
+      if (value.byteLength > maxBytes - used) {
+        abortController?.abort();
+        return null;
+      }
       used += value.byteLength;
       parts.push(value);
     }
@@ -36,9 +61,13 @@ export async function readBoundedManifestText(response, maxBytes = MAX_MANIFEST_
     let offset = 0;
     for (const part of parts) {all.set(part, offset); offset += part.byteLength;}
     return new TextDecoder("utf-8", {fatal:true}).decode(all);
+  } catch (error) {
+    // Also stop fetching if the source produces a malformed or failed stream.
+    abortController?.abort();
+    throw error;
   } finally {
     if (!complete) {
-      try {await reader.cancel();} catch { /* signal abort may already cancel */ }
+      try { await reader.cancel(); } catch { /* Abort may have closed stream. */ }
     }
     reader.releaseLock();
   }
