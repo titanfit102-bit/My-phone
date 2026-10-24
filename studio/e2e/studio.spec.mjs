@@ -171,6 +171,40 @@ test("oversized published manifest is rejected without claiming a verified relea
   await expect(preview(page,"Oversized Manifest").getByRole("heading",{name:"External preview survives"})).toBeVisible();
 });
 
+test("A02: declared oversized manifest aborts fetch and cancels unread stream in browser",async ({page})=>{
+  await page.addInitScript(()=>{
+    const originalFetch=window.fetch.bind(window);
+    window.__a02Proof={fetches:0,aborts:0,cancels:0,pulls:0};
+    window.fetch=async (input,options)=>{
+      const href=typeof input==="string"?input:input.url;
+      const url=new URL(href,window.location.href);
+      if(url.origin!=="https://preview.example.test"||url.pathname!=="/build-info.json")
+        return originalFetch(input,options);
+      const proof=window.__a02Proof;
+      proof.fetches++;
+      options?.signal?.addEventListener("abort",()=>{proof.aborts++},{once:true});
+      // A synthetic unread stream with backpressure. Producing a chunk would
+      // need the application to call getReader()/read(), which must not happen.
+      const body=new ReadableStream({
+        pull(){proof.pulls++},
+        cancel(){proof.cancels++}
+      },{highWaterMark:0});
+      return new Response(body,{status:200,headers:{
+        "content-length":"16385","content-type":"application/json"
+      }});
+    };
+  });
+  await mockApplication(page);
+  await page.goto("/");
+  await createProject(page,"Header Abort");
+  await expect(page.getByText("Version i paverifikueshëm")).toBeVisible();
+  await expect.poll(async()=>page.evaluate(()=>window.__a02Proof)).toMatchObject({
+    fetches:1,aborts:1,cancels:1,pulls:0
+  });
+  await expect(preview(page,"Header Abort").getByTestId("mock-version")).toHaveText("Version alpha");
+  await expect(page.getByText("Publikimi u verifikua")).toHaveCount(0);
+});
+
 test("unsupported manifest uses fallback and keeps the external-open action", async ({page}) => {
   await page.route(/^https:\/\/preview\.example\.test\//, async route => {
     const path = new URL(route.request().url()).pathname;
