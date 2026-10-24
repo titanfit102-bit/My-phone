@@ -1,0 +1,47 @@
+name: A02 network cancellation regression (non-release)
+
+on:
+  push:
+    branches: ["feat/a02-network-cancel-functional-proof"]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Reproducible dependency install (security audit remains separate and fail-closed)
+        run: npm ci --no-audit --no-fund
+      - name: Repository and Node regression tests
+        run: npm run check:config
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Build Expo Web
+        run: npm run export:web
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser desktop/mobile and A02 network cancellation checks
+        run: npm run test:e2e
+      - name: Debug traces on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: a02-network-cancel-debug
+          path: |
+            studio/test-results/
+            studio/playwright-report/
+          retention-days: 5
+          if-no-files-found: ignore
