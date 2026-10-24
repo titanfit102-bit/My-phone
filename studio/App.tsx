@@ -37,10 +37,10 @@ function browserStorage():Storage|null {
   if(!isWeb || typeof window === "undefined") return null;
   try {return window.localStorage;}catch{return null;}
 }
-function RoundButton({label, onPress, primary=false, danger=false}:{
-  label:string;onPress:()=>void;primary?:boolean;danger?:boolean
+function RoundButton({label, onPress, primary=false, danger=false, accessibilityLabel}:{
+  label:string;onPress:()=>void;primary?:boolean;danger?:boolean;accessibilityLabel?:string
 }) {
-  return <Pressable accessibilityRole="button" onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel||label} onPress={onPress}
     style={({pressed})=>[styles.roundButton,primary&&styles.primaryButton,danger&&styles.dangerButton,pressed&&styles.pressed]}>
     <Text style={[styles.buttonText,primary&&styles.primaryText,danger&&styles.dangerText]}>{label}</Text>
   </Pressable>;
@@ -53,7 +53,7 @@ function Field({title,value,onChange,placeholder,autoCapitalize="none"}:{
 }) {
   return <View style={{marginBottom:12}}>
     <Text style={styles.label}>{title}</Text>
-    <TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder}
+    <TextInput style={styles.input} accessibilityLabel={title} value={value} onChangeText={onChange} placeholder={placeholder}
       placeholderTextColor="#687994" autoCapitalize={autoCapitalize} autoCorrect={false}
       selectTextOnFocus={false} />
   </View>;
@@ -347,10 +347,10 @@ export default function App() {
           <View style={styles.leftModeControls}>
             <Text style={styles.overline}>02 / ZGJIDH PREVIEW</Text>
           <View style={styles.modeSwitcher}>
-            <Pressable accessibilityRole="button" onPress={()=>{invalidateZipContext();setMode("web");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" accessibilityState={{selected:currentMode==="web"}} onPress={()=>{invalidateZipContext();setMode("web");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="web"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="web"&&styles.modeLabelActive]}>◈ Expo Web Preview</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={()=>{invalidateZipContext();setMode("native");setRevision(r=>r+1);}}
+            <Pressable accessibilityRole="button" accessibilityState={{selected:currentMode==="native"}} onPress={()=>{invalidateZipContext();setMode("native");setRevision(r=>r+1);}}
               style={[styles.modeButton,currentMode==="native"&&styles.modeButtonActive]}>
               <Text style={[styles.modeLabel,currentMode==="native"&&styles.modeLabelActive]}>▣ Android Cloud APK</Text></Pressable>
           </View>
@@ -376,14 +376,14 @@ export default function App() {
             <RoundButton label="↓ Eksporto backup JSON" onPress={exportBackup}/>
             <RoundButton label="↑ Importo backup JSON" onPress={importBackup}/>
           </View>
-          {!!backupMessage&&<Text style={styles.backupMessage}>{backupMessage}</Text>}
+          {!!backupMessage&&<Text accessibilityLiveRegion="polite" style={styles.backupMessage}>{backupMessage}</Text>}
           {projects.length===0&&!formOpen&&<View style={styles.emptySide}>
             <Text style={styles.emptyGlyph}>◇</Text><Text style={styles.emptyTitle}>Studio është gati.</Text>
             <Text style={styles.emptyDesc}>Shto aplikacionin tënd të parë me lidhjen GitHub dhe URL Web ose Appetize.</Text>
             <RoundButton label="+ Lidh aplikacionin" primary onPress={addNew}/>
           </View>}
           {projects.map(project=><Pressable key={project.id} onPress={()=>pick(project)}
-            accessibilityRole="button" accessibilityLabel={"Hap " + project.name}
+            accessibilityRole="button" accessibilityLabel={"Hap " + project.name} accessibilityState={{selected:selected===project.id}}
             style={[styles.projectCard,selected===project.id&&styles.projectCardActive]}>
             <View style={styles.projectRow}>
               <View style={[styles.projectIcon,selected===project.id&&styles.projectIconActive]}>
@@ -399,7 +399,7 @@ export default function App() {
           </Pressable>)}
           {formOpen&&<View style={styles.formPanel}>
             <View style={styles.formHeader}><Text style={styles.formTitle}>{editing?"Ndrysho aplikacionin":"Aplikacion i ri"}</Text>
-              <RoundButton label="×" onPress={()=>{setFormOpen(false);setError("");}}/></View>
+              <RoundButton label="×" accessibilityLabel="Mbyll formularin" onPress={()=>{setFormOpen(false);setError("");}}/></View>
             <Field title="EMRI" value={draft.name} onChange={name=>setDraft(v=>({...v,name}))}
               autoCapitalize="sentences" placeholder="P.sh. ILLYRIAN"/>
             <Field title="GITHUB REPOSITORY" value={draft.github} onChange={github=>setDraft(v=>({...v,github}))}
@@ -475,12 +475,12 @@ export default function App() {
               </View>
               <Badge good={syncSummary.ok}>{syncSummary.title}</Badge>
             </View>
-            <Text style={styles.monitorDescription}>{syncSummary.detail}</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.monitorDescription}>{syncSummary.detail}</Text>
             {freezeEnabled&&<View style={styles.freezeNotice}>
               <Text style={styles.freezeNoticeText}>Session Freeze aktiv — rifreskimi automatik i telefonit është ndalur, por kontrolli i versioneve vazhdon.</Text>
             </View>}
             {!!syncState.pendingRevision&&<View style={styles.pendingNotice}>
-              <Text style={styles.pendingTitle}>Version i ri në pritje: {syncState.pendingRevision.slice(0,12)}</Text>
+              <Text accessibilityLiveRegion="polite" style={styles.pendingTitle}>Version i ri në pritje: {syncState.pendingRevision.slice(0,12)}</Text>
               <Text style={styles.pendingText}>Mund të vazhdosh testimin. Ndryshimi do të aplikohet vetëm kur ta zgjedhësh.</Text>
               <View style={styles.pendingAction}><RoundButton label="Apliko versionin e ri" primary onPress={()=>{applyPending();}}/></View>
             </View>}
@@ -509,7 +509,7 @@ export default function App() {
             </View>
           </View>}
             <View style={styles.previewTools}><View style={styles.statusRow}>
-              <View style={styles.greenDot}/><Text style={styles.statusText}>{quickPreview?"Quick Preview · sesion privat, pa ruajtje":current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
+              <View style={styles.greenDot}/><Text accessibilityLiveRegion="polite" style={styles.statusText}>{quickPreview?"Quick Preview · sesion privat, pa ruajtje":current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
               {!quickPreview&&current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
               {!quickPreview&&currentMode==="web"&&current&&previewUrl&&<Text style={styles.infoSmall}>Nëse iframe është bosh ose i bllokuar nga CSP/X-Frame-Options, hape jashtë Studios. URL e lidhur nuk provon ngarkim të suksesshëm.</Text>}
               <Text style={styles.infoSmall}>{quickPreview?"ZIP vetëm në RAM · sandbox i kufizuar":currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
