@@ -29,6 +29,19 @@ test("SEC-09: fine-grained tokens and credential-bearing URLs are rejected",()=>
     ["github-fine-grained-token","credential-bearing-url"]);
 });
 
+test("SEC-09: exact negative-test URL fixtures only, no broad test-folder bypass",()=>{
+  noFindings(scanText("studio/tests/project-model.test.mjs",
+    'assert.rejects("https://u:p@github.com/example/demo");'));
+  noFindings(scanText("studio/tests/live-sync.test.mjs",
+    'assert.rejects("https://user:pw@myapp.test");'));
+  assert.deepEqual(ruleNames(scanText("studio/tests/project-model.test.mjs",
+    'const leaked="https://bob:actualpass@production.example.org";')),
+    ["credential-bearing-url"]);
+  assert.deepEqual(ruleNames(scanText("studio/tests/project-model.test.mjs",
+    'const leaked="'+("gh"+"p_")+"A".repeat(35)+'";')),
+    ["github-classic-token"]);
+});
+
 test("SEC-09: harmless placeholders, hashes and dependency text pass",()=>{
   noFindings(scanText("studio/src/example.js",
     "const url='https://preview.example.test'; const key='REPLACE_ME';\n"+
