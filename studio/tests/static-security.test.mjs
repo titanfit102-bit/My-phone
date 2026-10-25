@@ -35,7 +35,7 @@ test("SEC-09: exact negative-test URL fixtures only, no broad test-folder bypass
   noFindings(scanText("studio/tests/live-sync.test.mjs",
     'assert.rejects("https://user:pw@myapp.test");'));
   assert.deepEqual(ruleNames(scanText("studio/tests/project-model.test.mjs",
-    'const leaked="https://bob:actualpass@production.example.org";')),
+    'const leaked="https://bob:actualpass'+'@production.example.org";')),
     ["credential-bearing-url"]);
   assert.deepEqual(ruleNames(scanText("studio/tests/project-model.test.mjs",
     'const leaked="'+("gh"+"p_")+"A".repeat(35)+'";')),
