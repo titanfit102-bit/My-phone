@@ -36,11 +36,24 @@ function lineOf(content,index) {
   for(let i=0;i<index;i++)if(content.charCodeAt(i)===10)n++;
   return n;
 }
+function isSyntheticCredentialFixture(path,value){
+  if(!/^studio\\/tests\\/[^/]+\\.test\\.mjs$/.test(path))return false;
+  try{
+    const url=new URL(value);
+    const shortFakeUser=["u","user"].includes(url.username);
+    const shortFakePassword=["p","pw","pass","secret"].includes(url.password);
+    return shortFakeUser&&shortFakePassword&&
+      (url.hostname.endsWith(".test")||url.hostname==="github.com");
+  }catch{return false;}
+}
 export function scanText(path,content) {
   const findings=[];
   for(const rule of TOKENS){
-    for(const m of content.matchAll(rule.pattern))
+    for(const m of content.matchAll(rule.pattern)){
+      if(rule.id==="credential-bearing-url"&&isSyntheticCredentialFixture(path,m[0]))
+        continue; // Exact intentionally-invalid URL fixtures, no general test bypass.
       findings.push({file:path,line:lineOf(content,m.index),rule:rule.id});
+    }
   }
   // These are runtime sources, not test fixtures, documentation or scanner
   // implementation. A finding is a review blocker, not proof of exploitation.
