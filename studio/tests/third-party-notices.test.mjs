@@ -187,3 +187,28 @@ test("A05: Web-export allows legitimate Expo client package and unrelated app so
   assert.match(readFileSync(resolve(f.output,"THIRD_PARTY_NOTICES.txt"),"utf8"),
     /Package: expo@57\.0\.30/);
 });
+
+
+test("A05: exact Expo Metro require shim is the only permitted Expo CLI client source", t => {
+  const f=fixture(t);
+  const dir="node_modules/expo/node_modules/@expo/cli";
+  f.put(dir+"/package.json",{name:"@expo/cli",version:"57.0.31",license:"MIT"});
+  f.put(dir+"/build/metro-require/require.js","export const metroRequire=()=>{};");
+  f.put(dir+"/LICENSE","Test fixture license");
+  f.map(["/"+dir+"/build/metro-require/require.js"]);
+  const result=f.run();
+  assert.equal(result.status,0,result.stderr);
+  assert.match(readFileSync(resolve(f.output,"THIRD_PARTY_NOTICES.txt"),"utf8"),
+    /Package: @expo\/cli@57\.0\.31/);
+});
+
+test("A05: a lookalike Metro CLI module is not automatically allowlisted", t => {
+  const f=fixture(t);
+  const dir="node_modules/expo/node_modules/@expo/cli";
+  f.put(dir+"/package.json",{name:"@expo/cli",version:"57.0.31",license:"MIT"});
+  f.put(dir+"/build/metro-require/require-extra.js","export const other=1;");
+  f.map(["/"+dir+"/build/metro-require/require-extra.js"]);
+  const result=f.run();
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/Forbidden development dependency in Web export: @expo\/cli/);
+});
