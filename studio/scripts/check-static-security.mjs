@@ -1,7 +1,7 @@
 // Zero-dependency high-confidence checks on tracked repository content.
 // This complements (not replaces) npm advisory audit, runtime Playwright or
 // GitHub-native secret protection. Only sanitized rule IDs and paths are logged.
-import {readFileSync,statSync} from "node:fs";
+import {readFileSync,lstatSync} from "node:fs";
 import {spawnSync} from "node:child_process";
 import {resolve,relative} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -81,6 +81,13 @@ export function verifyPreviewBoundary(app,quickPreview) {
   return findings;
 }
 
+export function trackedFileRule(stat) {
+  if(stat.isSymbolicLink())return "symlink-not-inspected";
+  if(!stat.isFile())return "non-regular-tracked-file";
+  if(stat.size>MAX_TRACKED_BYTES)return "oversize-file-not-inspected";
+  return null;
+}
+
 export function scanRepository(root) {
   const listing=spawnSync("git",["ls-files","-z","--cached"],{
     cwd:root,encoding:"utf8",maxBuffer:8*1024*1024,timeout:20000
@@ -93,9 +100,11 @@ export function scanRepository(root) {
     const absolute=resolve(root,file);
     if(relative(root,absolute).startsWith(".."))
       throw Error("Tracked path escaped repository.");
-    const bytes=statSync(absolute).size;
-    if(bytes>MAX_TRACKED_BYTES){
-      findings.push({file,line:1,rule:"oversize-file-not-inspected"});
+    // Do not follow attacker-controlled tracked links outside checkout.
+    // A symlink can make a scanner read files it was never authorized to inspect.
+    const rule=trackedFileRule(lstatSync(absolute));
+    if(rule){
+      findings.push({file,line:1,rule});
       continue;
     }
     const content=readFileSync(absolute,"utf8");
@@ -108,6 +117,11 @@ export function scanRepository(root) {
     }
     findings.push(...scanText(file,content));
   }
+  // Unsafe tracked file types have already failed closed; don't follow
+  // their contents even for the ZIP/CSP invariant check.
+  if(findings.some(f=>f.file==="studio/App.tsx"||
+                      f.file==="studio/src/quick-preview.js"))
+    return {filesScanned:files.length,findings};
   const app=readFileSync(resolve(root,"studio/App.tsx"),"utf8");
   const preview=readFileSync(resolve(root,"studio/src/quick-preview.js"),"utf8");
   findings.push(...verifyPreviewBoundary(app,preview));
