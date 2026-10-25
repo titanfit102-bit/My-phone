@@ -4,6 +4,10 @@ import {fileURLToPath} from "node:url";
 import {createHash} from "node:crypto";
 
 const hash = text => createHash("sha256").update(text).digest("hex");
+// A05 defense-in-depth: these Node/build-time packages must not ship to
+// Web users. This gate does NOT remediate Zod within Expo CLI tooling.
+export const FORBIDDEN_WEB_PACKAGE_NAMES=new Set(["zod","@expo/cli"]);
+
 const within = (root, path) => path === root || path.startsWith(root + sep);
 const readJSON = path => JSON.parse(readFileSync(path,"utf8"));
 function filesIn(root) {
@@ -51,6 +55,8 @@ export function emitThirdPartyNotices(projectRoot, exportDir) {
         const pkg=readJSON(metadata);
         // @babel/runtime/helpers has a package.json specifying only module type.
         if (typeof pkg.name === "string" && typeof pkg.version === "string") {
+          if(FORBIDDEN_WEB_PACKAGE_NAMES.has(pkg.name))
+            throw Error("Forbidden development dependency in Web export: "+pkg.name);
           packages.set(owner,pkg); found=true; break;
         }
       }
