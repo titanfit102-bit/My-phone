@@ -8,7 +8,7 @@ const channel = v => {
   return s<=0.04045?s/12.92:((s+0.055)/1.055)**2.4;
 };
 function luminance(rgb) {
-  const v=rgb.match(/[\\d.]+/g)?.slice(0,3).map(Number);
+  const v=rgb.match(/[\d.]+/g)?.slice(0,3).map(Number);
   if(!v||v.length!==3||v.some(n=>!Number.isFinite(n)))
     throw Error("Invalid computed CSS color: "+rgb);
   return 0.2126*channel(v[0])+0.7152*channel(v[1])+0.0722*channel(v[2]);
