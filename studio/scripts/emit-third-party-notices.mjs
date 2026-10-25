@@ -4,6 +4,11 @@ import {fileURLToPath} from "node:url";
 import {createHash} from "node:crypto";
 
 const hash = text => createHash("sha256").update(text).digest("hex");
+// A05 defense-in-depth: reject Zod and Expo CLI server modules in Web output.
+// The one Metro require shim shipped by official Expo Web is a known exception.
+// This check does NOT remediate Zod in Expo's build/development tooling.
+export const FORBIDDEN_WEB_PACKAGE_NAMES=new Set(["zod","@expo/cli"]);
+
 const within = (root, path) => path === root || path.startsWith(root + sep);
 const readJSON = path => JSON.parse(readFileSync(path,"utf8"));
 function filesIn(root) {
@@ -51,6 +56,10 @@ export function emitThirdPartyNotices(projectRoot, exportDir) {
         const pkg=readJSON(metadata);
         // @babel/runtime/helpers has a package.json specifying only module type.
         if (typeof pkg.name === "string" && typeof pkg.version === "string") {
+          const inExpoMetroShim=pkg.name==="@expo/cli" &&
+            relative(owner,path).split(sep).join("/") === "build/metro-require/require.js";
+          if(FORBIDDEN_WEB_PACKAGE_NAMES.has(pkg.name) && !inExpoMetroShim)
+            throw Error("Forbidden development dependency in Web export: "+pkg.name);
           packages.set(owner,pkg); found=true; break;
         }
       }
