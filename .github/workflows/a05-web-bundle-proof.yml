@@ -1,0 +1,54 @@
+name: A05 Web bundle source-map boundary proof (non-release)
+
+on:
+  push:
+    branches: ["fix/a05-web-bundle-attestation-functional-proof-v2"]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Pinned install (standard dependency gate is separate and remains blocking)
+        run: npm ci --no-audit --no-fund
+      - name: A05 synthetic leak rejection and positive control
+        run: node --test tests/third-party-notices.test.mjs
+      - name: Existing static security
+        run: npm run check:security-static
+      - name: Full Node unit suite
+        run: npm run check:config
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Real Metro Expo Web export with source-map Zod and CLI exclusion
+        run: npm run export:web
+      - name: Prove sensitive dependency absent from emitted notices
+        run: |
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; const s=readFileSync('dist/THIRD_PARTY_NOTICES.txt','utf8'); if(s.includes('Package: zod@')||s.includes('Package: @expo/cli@')) process.exit(1);"
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Full desktop and mobile regression
+        run: npm run test:e2e
+      - name: Failure-only synthetic browser evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: a05-web-boundary-failure
+          path: |
+            studio/test-results/
+            studio/playwright-report/
+          retention-days: 5
+          if-no-files-found: ignore
