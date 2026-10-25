@@ -37,7 +37,8 @@ function lineOf(content,index) {
   return n;
 }
 function isSyntheticCredentialFixture(path,value){
-  if(!/^studio\\/tests\\/[^/]+\\.test\\.mjs$/.test(path))return false;
+  if(!(path.startsWith("studio/tests/") && path.endsWith(".test.mjs") &&
+       !path.slice("studio/tests/".length).includes("/")))return false;
   try{
     const url=new URL(value);
     const shortFakeUser=["u","user"].includes(url.username);
