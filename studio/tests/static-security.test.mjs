@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {scanText,verifyPreviewBoundary,CSP_REQUIRED} from "../scripts/check-static-security.mjs";
+import {scanText,verifyPreviewBoundary,CSP_REQUIRED,trackedFileRule} from "../scripts/check-static-security.mjs";
 
 const noFindings=value=>assert.deepEqual(value,[]);
 const ruleNames=value=>value.map(x=>x.rule);
@@ -63,6 +63,16 @@ test("SEC-09: source evaluation and dangerous raw HTML block, docs do not trigge
 
 const app=sandbox=>`<iframe key="zip" srcDoc={quickPreview.srcDoc} sandbox="${sandbox}"/>`;
 const policies=extra=>[1,2].map(()=>`const policy="${CSP_REQUIRED.join("; ")}${extra}";`).join("\n");
+
+test("SEC-09: symlinks, directories and oversized tracked files fail closed",()=>{
+  const stat=(kind,size=200)=>({
+    isSymbolicLink:()=>kind==="symlink",isFile:()=>kind==="file",size
+  });
+  assert.equal(trackedFileRule(stat("file")),null);
+  assert.equal(trackedFileRule(stat("symlink")),"symlink-not-inspected");
+  assert.equal(trackedFileRule(stat("directory")),"non-regular-tracked-file");
+  assert.equal(trackedFileRule(stat("file",3*1024*1024)),"oversize-file-not-inspected");
+});
 
 test("SEC-04: opaque Quick Preview and two strict CSP definitions are required",()=>{
   noFindings(verifyPreviewBoundary(app("allow-scripts"),policies("")));
