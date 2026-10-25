@@ -17,7 +17,7 @@
 
 Në sidebar përdor **↑ Ngarko ZIP**. Studio kontrollon ZIP-in lokalisht, kërkon `dist/index.html` (ose `build/out`) dhe një bundle JS të vetëm me maksimumi një CSS. Nëse gjendet, e çkompreson **vetëm përkohësisht në shfletues** dhe shfaq pamjen në telefonin virtual në një `iframe` të izoluar (pa same-origin). **Nuk ruan ZIP-in ose preview-n në My Projects, localStorage apo databazë**. Butoni **✕ Mbyll Quick Preview** e mbyll menjëherë; rifreskimi ose mbyllja e faqes e humbet sesionin.
 
-Për këtë modalitet nuk ka nevojë për pagesë cloud, instalim në kompjuter apo akses në GitHub. **Nuk është build automatik**: ZIP që përmban vetëm kod burimor kërkon build më vete. Preview është offline dhe API/backend, fontet/media të jashtme, module të ndara ose APK reale mund të mos funksionojnë. Përdor `Quick Preview` vetëm për build-et Web që i njeh. Shih [kufizimet dhe testet](docs/QUICK_PREVIEW_ZIP.md).
+Për këtë modalitet nuk ka nevojë për pagesë cloud, instalim në kompjuter apo akses në GitHub. **Nuk është build automatik**: ZIP që përmban vetëm kod burimor kërkon build më vete. Preview punon me Web build-in lokal brenda një iframe-i me origjinë opake, por **nuk garanton izolim të plotë nga rrjeti**: JavaScript i ZIP-it mund të përpiqet të navigojë vetë iframe-in te një adresë e jashtme, duke nisur kërkesë rrjeti. Kufizimet CSP bllokojnë disa lloje kërkesash, por nuk garantojnë kufizim të plotë të rrjetit ose të CPU-së. **Përdor vetëm ZIP-e të besuara që i zotëron.** API/backend, fontet/media të jashtme, module të ndara ose APK reale mund të mos funksionojnë. Përdor `Quick Preview` vetëm për build-et Web që i njeh. Shih [kufizimet dhe testet](docs/QUICK_PREVIEW_ZIP.md).
 
 ## ZIP Import — faza 1 (analizë e sigurt, jo build)
 

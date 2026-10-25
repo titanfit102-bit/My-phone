@@ -557,7 +557,8 @@ const styles=StyleSheet.create({
   dangerButton:{backgroundColor:"#3D222F",borderColor:"#754251"},
   pressed:{opacity:.73},
   buttonText:{color:"#D2DCF5",fontWeight:"800",fontSize:11},
-  primaryText:{color:"#FFFFFF"},
+  // White on the accent (#F44678) was 3.50:1, below WCAG AA for 11px text.
+  primaryText:{color:"#0B080E"},
   dangerText:{color:"#FF9BA9"},
   projectCard:{padding:13,borderRadius:14,borderWidth:1,borderColor:C.outline,marginBottom:10,backgroundColor:C.panel},
   projectCardActive:{borderColor:C.accent,backgroundColor:"#381A2D"},
