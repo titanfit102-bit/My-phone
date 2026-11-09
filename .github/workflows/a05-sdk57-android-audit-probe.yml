@@ -1,0 +1,68 @@
+name: A05 SDK57 Android CLI and moderate audit probe (non-release)
+on:
+  push:
+    branches: [fix/a05-sdk57-lockfile-dependency-refresh]
+    paths:
+      - .github/workflows/a05-sdk57-android-audit-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  android-cli-and-advisories:
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/fix/a05-sdk57-lockfile-dependency-refresh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # pinned v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pinned v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Reproduce locked SDK57 installation
+        run: npm ci --no-audit --no-fund
+      - name: List moderate production audit findings without changing audit gate
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/a05-audit.json" || audit_code=$?
+          if test "${audit_code:-0}" -gt 1; then
+            echo 'npm audit failed to produce a normal vulnerability report'
+            exit 1
+          fi
+          node - "$RUNNER_TEMP/a05-audit.json" <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const x=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          assert(!x.error,'npm audit service error');
+          assert.equal(x.metadata?.vulnerabilities?.critical,0,'critical vulnerability present');
+          assert.equal(x.metadata?.vulnerabilities?.high,0,'high vulnerability present');
+          const issues=Object.entries(x.vulnerabilities||{}).filter(([,v])=>v.severity==='moderate');
+          console.log('PRODUCTION MODERATE AUDIT PATHS:',JSON.stringify(issues.map(([name,v])=>({
+            package:name,range:v.range,via:v.via?.map(z=>typeof z==='string'?z:{title:z.title,severity:z.severity,url:z.url}),
+            fixAvailable:v.fixAvailable
+          })),null,2));
+          console.log('AUDIT COUNTS:',JSON.stringify(x.metadata.vulnerabilities));
+          NODE
+      - name: Verify Expo CLI Android project configuration
+        run: |
+          npx expo config --json > "$RUNNER_TEMP/a05-expo-config.json"
+          node - "$RUNNER_TEMP/a05-expo-config.json" <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const c=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          assert(c && typeof c==='object','Expo configuration invalid');
+          console.log('Expo Android config parsed:',JSON.stringify({name:c.name,slug:c.slug,platforms:c.platforms,sdkVersion:c.sdkVersion}));
+          NODE
+      - name: Export Expo Android JavaScript bundle (not APK)
+        run: |
+          npx expo export --platform android --output-dir .a05-android-export
+          test -d .a05-android-export
+          test "$(find .a05-android-export -type f | wc -l)" -gt 0
+          echo 'Expo Android export files:'
+          find .a05-android-export -type f -maxdepth 6 | head -30
+      - name: Ensure probe did not modify tracked source
+        run: |
+          git diff --exit-code
