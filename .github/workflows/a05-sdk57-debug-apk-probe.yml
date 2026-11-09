@@ -73,8 +73,20 @@ jobs:
           sha256sum "$APK"
           wc -c < "$APK"
           echo 'Debug APK compilation is not runtime/device/release attestation.'
-      - name: Check tracked project configuration unchanged
-        run: git -C .. diff --exit-code -- studio/package.json studio/package-lock.json studio/app.json
+      - name: Attest and revert only Expo-generated temporary Android package ID
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict');
+          const originalText=cp.execFileSync('git',['show','HEAD:studio/app.json'],{encoding:'utf8'});
+          const original=JSON.parse(originalText);
+          const generated=JSON.parse(fs.readFileSync('app.json','utf8'));
+          const expected=structuredClone(original);
+          expected.expo.android={...(expected.expo.android||{}),package:'com.anonymous.myphonestudio'};
+          assert.deepEqual(generated,expected,'Expo prebuild changed app.json beyond the single expected local-only package ID');
+          fs.writeFileSync('app.json',originalText);
+          console.log('Verified temporary Expo Android package ID; original app.json restored exactly');
+          NODE
+          git -C .. diff --exit-code -- studio/package.json studio/package-lock.json studio/app.json
       - name: Save non-release debug APK only if compile succeeded
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned upload-artifact v4
         with:
