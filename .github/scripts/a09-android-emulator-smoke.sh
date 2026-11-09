@@ -22,6 +22,28 @@ for attempt in $(seq 1 25); do
   sleep 4
   adb shell uiautomator dump /sdcard/a09-ui.xml >/dev/null 2>&1 || true
   adb exec-out cat /sdcard/a09-ui.xml > a09-emulator-proof/initial.xml 2>/dev/null || true
+  # On a fresh emulator the Pixel launcher can report ANR above the correctly
+  # rendered Studio UI; dismiss only its explicit "Wait" action, never infer
+  # success from pixels hidden behind a system modal.
+  if grep -q "Pixel Launcher isn't responding" a09-emulator-proof/initial.xml; then
+    echo 'Emulator Pixel Launcher ANR overlay detected; dismissing Wait to inspect app UI'
+    wait_coords=$(python3 - <<'PY'
+import re,xml.etree.ElementTree as ET
+r=ET.parse('a09-emulator-proof/initial.xml').getroot()
+for n in r.iter('node'):
+    if n.attrib.get('text')=='Wait':
+        v=list(map(int,re.findall(r'\d+',n.attrib.get('bounds',''))))
+        if len(v)==4:
+            print((v[0]+v[2])//2,(v[1]+v[3])//2)
+        break
+PY
+)
+    if [ -n "$wait_coords" ]; then
+      adb shell input tap $wait_coords
+      sleep 2
+      continue
+    fi
+  fi
   if grep -Eq 'MY PHONE|EXPO STUDIO|Studio është gati|Lidh aplikacionin' a09-emulator-proof/initial.xml; then
     found=true
     break
