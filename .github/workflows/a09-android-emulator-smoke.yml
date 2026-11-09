@@ -4,6 +4,7 @@ on:
     branches: [fix/a05-sdk57-lockfile-dependency-refresh]
     paths:
       - .github/workflows/a09-android-emulator-smoke.yml
+      - .github/scripts/a09-android-emulator-smoke.sh
 
 permissions:
   contents: read
@@ -75,43 +76,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           emulator-boot-timeout: 420
-          script: |
-            set -eu
-            mkdir -p a09-emulator-proof
-            adb wait-for-device
-            adb shell input keyevent 82 || true
-            adb reverse tcp:8081 tcp:8081
-            adb install -r a09-input-apk/app-debug.apk
-            adb shell pm list packages | grep -q '^package:com.anonymous.myphonestudio$'
-            adb shell am start -W -n com.anonymous.myphonestudio/.MainActivity
-            found=false
-            for i in $(seq 1 25); do
-              sleep 4
-              adb shell uiautomator dump /sdcard/a09-ui.xml >/dev/null 2>&1 || true
-              adb exec-out cat /sdcard/a09-ui.xml > a09-emulator-proof/initial.xml 2>/dev/null || true
-              if grep -Eq 'MY PHONE|EXPO STUDIO|Studio është gati|Lidh aplikacionin' a09-emulator-proof/initial.xml; then
-                found=true
-                break
-              fi
-            done
-            adb exec-out screencap -p > a09-emulator-proof/initial.png || true
-            adb logcat -d -s AndroidRuntime:E ReactNativeJS:E > a09-emulator-proof/logcat-errors.txt || true
-            if [ "$found" != true ]; then
-              echo 'Native Studio UI not found after installing and launching the debug APK. Screenshot/XML captured for diagnosis.'
-              tail -90 "$RUNNER_TEMP/a09-metro.log" || true
-              exit 1
-            fi
-            adb shell pidof com.anonymous.myphonestudio
-            python3 - <<'PY'
-            import xml.etree.ElementTree as ET
-            root=ET.parse('a09-emulator-proof/initial.xml').getroot()
-            nodes=list(root.iter('node'))
-            labels=[(n.attrib.get('text','')+' '+n.attrib.get('content-desc','')).strip() for n in nodes]
-            print('Android accessibility-visible node count:',len(nodes))
-            print('Accessible button previews:',[s[:100] for s in labels if 'Shto' in s or 'Lidh aplikacionin' in s][:10])
-            assert any('Shto' in s or 'Lidh aplikacionin' in s for s in labels), 'Main add-action has no accessible text'
-            PY
-            echo 'Android emulator installed and rendered My Phone Studio with accessible add-action. Not a TalkBack or physical-device acceptance.'
+          script: bash .github/scripts/a09-android-emulator-smoke.sh
       - name: Preserve only synthetic native UI evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned upload-artifact v4
