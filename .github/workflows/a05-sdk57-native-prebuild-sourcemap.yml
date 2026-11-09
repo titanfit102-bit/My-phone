@@ -1,0 +1,83 @@
+name: A05 SDK57 native prebuild and Android bundle boundary (non-release)
+on:
+  push:
+    branches: [fix/a05-sdk57-lockfile-dependency-refresh]
+    paths:
+      - .github/workflows/a05-sdk57-native-prebuild-sourcemap.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a05-sdk57-native-smoke
+  cancel-in-progress: false
+
+jobs:
+  android-native-prebuild-and-bundle:
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/fix/a05-sdk57-lockfile-dependency-refresh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # pinned v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pinned v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Reproduce candidate lockfile
+        run: |
+          npm ci --no-audit --no-fund
+          node -e "const p=require('./package-lock.json').packages; if(p['node_modules/expo']?.version!=='57.0.32'||p['node_modules/node-forge']?.version!=='1.4.3'||Object.keys(p).some(k=>k.endsWith('/zod'))) process.exit(1)"
+      - name: Generate Android native project without SDK build/install
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          npx expo prebuild --platform android --no-install --clean
+          test -s android/settings.gradle
+          test -s android/build.gradle
+          test -s android/app/build.gradle
+          test -s android/app/src/main/AndroidManifest.xml
+          test -s android/gradle.properties
+          echo 'Native Android prebuild files verified (not APK build)'
+      - name: Export Android source maps and attest build-only modules excluded
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          npx expo export --platform android --source-maps --output-dir .a05-android-source-map
+          node <<'NODE'
+          const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+          const files=[];
+          function walk(d) {for(const entry of fs.readdirSync(d,{withFileTypes:true})){
+            const f=path.join(d,entry.name);
+            if(entry.isDirectory()) walk(f); else if(entry.name.endsWith('.map'))files.push(f);
+          }}
+          walk('.a05-android-source-map');
+          assert(files.length,'No Android source map generated; cannot attest exclusion');
+          let modules=0, checked=0;
+          for(const f of files){
+            const m=JSON.parse(fs.readFileSync(f,'utf8'));
+            assert(Array.isArray(m.sources),'Android source map lacks sources');
+            for(const raw of m.sources){
+              const src=String(raw).replaceAll('\\','/');
+              const idx=src.lastIndexOf('node_modules/');
+              if(idx<0)continue;
+              const modulePath=src.slice(idx+'node_modules/'.length);
+              modules++;
+              const blocked=['glob/','minimatch/','@expo/fingerprint/','zod/'].some(s=>modulePath.startsWith(s));
+              const cliServer=modulePath.startsWith('@expo/cli/')&&modulePath!=='@expo/cli/build/metro-require/require.js';
+              if(blocked||cliServer)throw Error('Build-only package present in Android JS bundle: '+modulePath);
+              checked++;
+            }
+          }
+          assert(modules>0,'No node_modules modules in Android source map');
+          console.log('Android source maps:',files.length,'dependency module paths:',modules,'checked:',checked);
+          NODE
+      - name: Check application dependency manifests unchanged by native prebuild
+        run: git -C .. diff --exit-code -- studio/package.json studio/package-lock.json
