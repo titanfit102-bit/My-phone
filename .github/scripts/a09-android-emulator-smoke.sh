@@ -22,23 +22,55 @@ for attempt in $(seq 1 25); do
   sleep 4
   adb shell uiautomator dump /sdcard/a09-ui.xml >/dev/null 2>&1 || true
   adb exec-out cat /sdcard/a09-ui.xml > a09-emulator-proof/initial.xml 2>/dev/null || true
-  # On a fresh emulator the Pixel launcher can report ANR above the correctly
-  # rendered Studio UI; dismiss only its explicit "Wait" action, never infer
-  # success from pixels hidden behind a system modal.
+  # The emulator can display a transient Pixel Launcher ANR modal over a healthy Studio UI.
+  # Select only the modal's explicit Wait button; do not bypass the app UI assertion.
   if grep -q "Pixel Launcher isn't responding" a09-emulator-proof/initial.xml; then
-    echo 'Emulator Pixel Launcher ANR overlay detected; dismissing Wait to inspect app UI'
-    wait_python3 - <<'PY'
+    echo 'Pixel Launcher ANR overlay detected, selecting Wait before checking native UI'
+    wait_coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root=ET.parse('a09-emulator-proof/initial.xml').getroot()
+for node in root.iter('node'):
+    if node.attrib.get('text')=='Wait':
+        values=list(map(int,re.findall(r'\d+',node.attrib.get('bounds',''))))
+        if len(values)==4:
+            print((values[0]+values[2])//2,(values[1]+values[3])//2)
+        break
+PY
+)
+    if [ -n "$wait_coords" ]; then
+      adb shell input tap $wait_coords
+      sleep 2
+      continue
+    fi
+  fi
+  if grep -Eq 'MY PHONE|EXPO STUDIO|Studio është gati|Lidh aplikacionin' a09-emulator-proof/initial.xml; then
+    found=true
+    break
+  fi
+done
+
+if [ "$found" != true ]; then
+  echo 'FAIL: Native Studio interface did not render an expected label after installing the exact debug APK.'
+  tail -90 "$RUNNER_TEMP/a09-metro.log" || true
+  exit 1
+fi
+
+echo 'PASS: Android app process and Studio native UI are visible.'
+adb exec-out screencap -p > a09-emulator-proof/initial.png || true
+
+# The pinned Pixel 6 screenshot shows the central accessible action near (540,1450).
+# UIAutomator's offscreen React Native sidebar bounds can report y2<y1, so do not
+# click the first sidebar action by its invalid bounds.
+python3 - <<'PY'
 import xml.etree.ElementTree as ET
 root=ET.parse('a09-emulator-proof/initial.xml').getroot()
 nodes=list(root.iter('node'))
 labels=[(n.attrib.get('text','')+' '+n.attrib.get('content-desc','')).strip() for n in nodes]
-print('Android accessibility-visible node count:',len(nodes))
-assert any('+ Lidh aplikacionin' in s for s in labels), 'Main visible Add action has no accessible label'
-print('PASS: Native Android exposes the central Add action with a stable accessible label')
+print('Visible Android accessibility hierarchy nodes:',len(nodes))
+assert any('+ Lidh aplikacionin' in label for label in labels), 'Central Add action lacks accessible label'
+print('PASS: Native Android exposes the central Add action label')
 PY
-# The AVD's React Native transformed/scroll-clipped elements expose malformed
-# UIAutomator bounds for off-screen sidebar controls. Use the physically visible
-# central CTA coordinate documented by the same pinned Pixel 6 (1080x2400) screenshot.
 test "$(adb shell wm size | tr -d '\r')" = 'Physical size: 1080x2400'
 adb shell input tap 540 1450
 sleep 3
