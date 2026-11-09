@@ -1,0 +1,120 @@
+name: A05 isolated SDK57 dependency proof (non-release)
+on:
+  push:
+    branches: [fix/a05-sdk57-lockfile-dependency-refresh]
+    paths:
+      - .github/workflows/a05-sdk57-lockfile-probe.yml
+      - studio/package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolated-a05-sdk57
+  cancel-in-progress: false
+
+jobs:
+  resolve-and-verify:
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/fix/a05-sdk57-lockfile-dependency-refresh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # pinned v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pinned v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Refresh only allowed SDK57 lockfile candidates
+        run: |
+          npm update expo @expo/cli node-forge --package-lock-only --ignore-scripts --no-audit --no-fund
+          git diff --exit-code -- studio/package.json
+          test "$(git diff --name-only)" = 'studio/package-lock.json'
+          node <<'NODE'
+          const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict');
+          const fresh=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          const old=JSON.parse(cp.execFileSync('git',['show','HEAD:studio/package-lock.json'],{encoding:'utf8'}));
+          const before=old.packages, after=fresh.packages;
+          assert.equal(after['node_modules/expo']?.version,'57.0.32','Expo SDK57 expected');
+          const clis=Object.entries(after).filter(([k])=>k.endsWith('/@expo/cli'));
+          assert(clis.length>0,'Expo CLI missing');
+          assert(clis.every(([,v])=>v.version==='57.0.33'),'Expo CLI not 57.0.33');
+          const forges=Object.entries(after).filter(([k])=>k.endsWith('/node-forge'));
+          assert(forges.length>0,'node-forge missing');
+          assert(forges.every(([,v])=>v.version==='1.4.3'),'node-forge not 1.4.3');
+          const zods=Object.keys(after).filter(k=>k.endsWith('/zod'));
+          assert.equal(zods.length,0,'Zod still in production dependency lock tree');
+          assert.deepEqual(after[''],before[''],'Root package manifest changed');
+          const changed=new Set([...Object.keys(before),...Object.keys(after)].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k])));
+          console.log('Changed package nodes:',changed.size);
+          assert(changed.size>0 && changed.size<=120,'Lockfile update has unexpectedly broad scope');
+          console.log('New Expo, CLI and forge versions have been resolved from npm registry.');
+          NODE
+      - name: Validate lockfile installation
+        run: |
+          npm ci --no-audit --no-fund
+          npm ls expo @expo/cli node-forge --all
+      - name: Static security regression
+        run: npm run check:security-static
+      - name: Official unchanged security audit gate
+        run: node scripts/verify-security-audit.mjs
+      - name: Node and TypeScript regression
+        run: |
+          npm run check:config
+          npm run typecheck
+      - name: Expo Web export and asset boundary regression
+        run: npm run export:web
+      - name: Chromium browser regression
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Archive resolved candidate for inspection
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned v4
+        with:
+          name: a05-sdk57-checked-lockfile
+          path: studio/package-lock.json
+          retention-days: 2
+          if-no-files-found: error
+
+  commit-only-after-all-gates-pass:
+    needs: [resolve-and-verify]
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/fix/a05-sdk57-lockfile-dependency-refresh'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # pinned v4
+        with:
+          persist-credentials: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned v4
+        with:
+          name: a05-sdk57-checked-lockfile
+          path: candidate
+      - name: Stage only verified lockfile
+        run: |
+          set -eu
+          test -s candidate/package-lock.json
+          node <<'NODE'
+          const p=require('./candidate/package-lock.json').packages;
+          if(p['node_modules/expo']?.version!=='57.0.32' ||
+             !Object.entries(p).some(([k,v])=>k.endsWith('/@expo/cli')&&v.version==='57.0.33') ||
+             !Object.entries(p).some(([k,v])=>k.endsWith('/node-forge')&&v.version==='1.4.3') ||
+             Object.keys(p).some(k=>k.endsWith('/zod')))
+            throw Error('Verified lockfile version/absence invariants do not hold');
+          NODE
+          cmp -s candidate/package-lock.json studio/package-lock.json && { echo 'No lockfile change'; exit 1; }
+          cp candidate/package-lock.json studio/package-lock.json
+          test "$(git diff --name-only)" = 'studio/package-lock.json'
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add studio/package-lock.json
+          git commit -m 'fix(A05): refresh verified SDK57 Expo and node-forge lockfile'
+          git push origin HEAD:refs/heads/fix/a05-sdk57-lockfile-dependency-refresh
