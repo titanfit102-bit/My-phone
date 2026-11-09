@@ -1,0 +1,84 @@
+name: A05 SDK57 Android debug APK compilation (non-release)
+on:
+  push:
+    branches: [fix/a05-sdk57-lockfile-dependency-refresh]
+    paths:
+      - .github/workflows/a05-sdk57-debug-apk-probe.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a05-sdk57-android-apk-probe
+  cancel-in-progress: false
+
+jobs:
+  android-debug-build:
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/fix/a05-sdk57-lockfile-dependency-refresh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: studio
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # pinned checkout v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pinned setup-node v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # pinned setup-java v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install exact locked project dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json','utf8')).packages;
+          if(lock['node_modules/expo']?.version !== '57.0.32'
+            || lock['node_modules/node-forge']?.version !== '1.4.3'
+            || !Object.entries(lock).some(([k,v]) => k.endsWith('/@expo/cli') && v.version === '57.0.33')
+            || Object.keys(lock).some(k => k.endsWith('/zod'))) {
+            throw Error('Unexpected A05 dependency graph');
+          }
+          console.log('Verified Expo SDK57, CLI and forge lockfile, no Zod tree.');
+          NODE
+      - name: Generate native Android project, no EAS cloud credentials
+        run: |
+          npx expo prebuild --platform android --no-install --clean
+          test -s android/gradlew
+          test -s android/app/build.gradle
+          test -s android/app/src/main/AndroidManifest.xml
+          chmod +x android/gradlew
+      - name: Build Android debug APK using Gradle, no release signing
+        run: |
+          cd android
+          ./gradlew :app:assembleDebug --no-daemon --max-workers=2
+      - name: Validate generated debug APK without running it
+        run: |
+          set -eu
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK" > /dev/null
+          unzip -Z -1 "$APK" | grep -q '^AndroidManifest.xml$'
+          unzip -Z -1 "$APK" | grep -Eq '^classes([0-9]*)?\.dex$'
+          echo 'Android debug APK SHA-256 and size:'
+          sha256sum "$APK"
+          wc -c < "$APK"
+          echo 'Debug APK compilation is not runtime/device/release attestation.'
+      - name: Check tracked project configuration unchanged
+        run: git -C .. diff --exit-code -- studio/package.json studio/package-lock.json studio/app.json
+      - name: Save non-release debug APK only if compile succeeded
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned upload-artifact v4
+        with:
+          name: a05-sdk57-UNRELEASED-debug-apk
+          path: studio/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 2
+          if-no-files-found: error
