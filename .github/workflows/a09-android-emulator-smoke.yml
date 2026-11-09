@@ -74,9 +74,10 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # pinned v2
         with:
           api-level: 35
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_6
+          ram-size: 3072M
           emulator-boot-timeout: 420
           script: bash .github/scripts/a09-android-emulator-smoke.sh
       - name: Preserve only synthetic native UI evidence
