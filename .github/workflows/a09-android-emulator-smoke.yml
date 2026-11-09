@@ -1,0 +1,125 @@
+name: A09 Android emulator install and UI smoke (non-release)
+on:
+  push:
+    branches: [fix/a05-sdk57-lockfile-dependency-refresh]
+    paths:
+      - .github/workflows/a09-android-emulator-smoke.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: a09-android-emulator-smoke
+  cancel-in-progress: false
+
+jobs:
+  isolated-android-emulator:
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/fix/a05-sdk57-lockfile-dependency-refresh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 26
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # pinned checkout v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # pinned setup-node v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Obtain previously compiled test APK, read-only
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned v4
+        with:
+          name: a05-sdk57-UNRELEASED-debug-apk
+          run-id: '42636640632'
+          path: a09-input-apk
+          github-token: ${{ github.token }}
+      - name: Validate APK provenance, never accept a different build
+        run: |
+          test -s a09-input-apk/app-debug.apk
+          echo 'a6a706efe1ad18a4db92836e999f65232fad0bdc9eb8ec827df1c975c0e29694  a09-input-apk/app-debug.apk' | sha256sum -c -
+          unzip -t a09-input-apk/app-debug.apk >/dev/null
+          unzip -Z -1 a09-input-apk/app-debug.apk | grep -q '^AndroidManifest.xml$'
+      - name: Start isolated Metro debug server for the exact SDK57 source
+        run: |
+          cd studio
+          npm ci --no-audit --no-fund
+          nohup ./node_modules/.bin/expo start --localhost --port 8081 > "$RUNNER_TEMP/a09-metro.log" 2>&1 < /dev/null &
+          echo $! > "$RUNNER_TEMP/a09-metro.pid"
+          ready=false
+          for i in $(seq 1 90); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8081/status | grep -q 'packager-status:running'; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then
+            tail -100 "$RUNNER_TEMP/a09-metro.log"
+            exit 1
+          fi
+          echo 'Metro is reachable on localhost:8081; this is a dev-server-assisted test, NOT an offline APK acceptance.'
+      - name: Enable Linux emulator acceleration (temporary runner only)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install debug APK and exercise Android native UI on emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # pinned v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 420
+          script: |
+            set -eu
+            mkdir -p a09-emulator-proof
+            adb wait-for-device
+            adb shell input keyevent 82 || true
+            adb reverse tcp:8081 tcp:8081
+            adb install -r a09-input-apk/app-debug.apk
+            adb shell pm list packages | grep -q '^package:com.anonymous.myphonestudio$'
+            adb shell am start -W -n com.anonymous.myphonestudio/.MainActivity
+            found=false
+            for i in $(seq 1 25); do
+              sleep 4
+              adb shell uiautomator dump /sdcard/a09-ui.xml >/dev/null 2>&1 || true
+              adb exec-out cat /sdcard/a09-ui.xml > a09-emulator-proof/initial.xml 2>/dev/null || true
+              if grep -Eq 'MY PHONE|EXPO STUDIO|Studio është gati|Lidh aplikacionin' a09-emulator-proof/initial.xml; then
+                found=true
+                break
+              fi
+            done
+            adb exec-out screencap -p > a09-emulator-proof/initial.png || true
+            adb logcat -d -s AndroidRuntime:E ReactNativeJS:E > a09-emulator-proof/logcat-errors.txt || true
+            if [ "$found" != true ]; then
+              echo 'Native Studio UI not found after installing and launching the debug APK. Screenshot/XML captured for diagnosis.'
+              tail -90 "$RUNNER_TEMP/a09-metro.log" || true
+              exit 1
+            fi
+            adb shell pidof com.anonymous.myphonestudio
+            python3 - <<'PY'
+            import xml.etree.ElementTree as ET
+            root=ET.parse('a09-emulator-proof/initial.xml').getroot()
+            nodes=list(root.iter('node'))
+            labels=[(n.attrib.get('text','')+' '+n.attrib.get('content-desc','')).strip() for n in nodes]
+            print('Android accessibility-visible node count:',len(nodes))
+            print('Accessible button previews:',[s[:100] for s in labels if 'Shto' in s or 'Lidh aplikacionin' in s][:10])
+            assert any('Shto' in s or 'Lidh aplikacionin' in s for s in labels), 'Main add-action has no accessible text'
+            PY
+            echo 'Android emulator installed and rendered My Phone Studio with accessible add-action. Not a TalkBack or physical-device acceptance.'
+      - name: Preserve only synthetic native UI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned upload-artifact v4
+        with:
+          name: a09-ANDROID-EMULATOR-nonrelease-ui
+          path: a09-emulator-proof/
+          retention-days: 2
+          if-no-files-found: warn
+      - name: Check tracked app sources remain unchanged
+        if: always()
+        run: git diff --exit-code -- studio/App.tsx studio/app.json studio/package.json studio/package-lock.json
