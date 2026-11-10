@@ -1,17 +1,22 @@
 import React from "react";
 import {View, Text, StyleSheet} from "react-native";
-import {cleanAppetizeEmbed} from "./project-model";
+import {cleanAppetizeEmbed, cleanWebUrl} from "./project-model";
 
 type Props = {url: string; variant: "web" | "native"; revision: number; title: string};
 export default function PreviewHost({url, variant, revision, title}: Props) {
   if (!url) return <View style={styles.empty}><Text style={styles.emptyTitle}>Nuk ka preview për këtë modalitet.</Text></View>;
-  // Defense in depth at the privileged embed sink: project creation/backup already
-  // checks provider URLs, but iframe rendering must not trust arbitrary callers.
-  // Keep Appetize's existing session sandbox until a real compatibility test.
-  let safeUrl = url;
-  if (variant === "native") {
-    try { safeUrl = cleanAppetizeEmbed(url); }
-    catch { return <View style={styles.empty}><Text style={styles.emptyTitle}>Lidhja Appetize nuk është e vlefshme.</Text></View>; }
+  // Revalidate both URL types at the iframe sink, even if future callers bypass
+  // project form/registry checks. Never grant native permissions for an unknown mode.
+  if (variant !== "native" && variant !== "web") {
+    return <View style={styles.empty}><Text style={styles.emptyTitle}>Modaliteti i preview nuk është i vlefshëm.</Text></View>;
+  }
+  let safeUrl: string;
+  try {
+    safeUrl = variant === "native" ? cleanAppetizeEmbed(url) : cleanWebUrl(url);
+    if (!safeUrl) throw Error("Empty preview URL");
+  } catch {
+    // No untrusted URL or credentials are reflected into the UI.
+    return <View style={styles.empty}><Text style={styles.emptyTitle}>{variant === "native" ? "Lidhja Appetize nuk është e vlefshme." : "Lidhja Web nuk është e vlefshme."}</Text></View>;
   }
   const key = variant + "-" + safeUrl + "-" + revision;
   // The iframe only embeds the deployed web app OR an Appetize-owned device.
