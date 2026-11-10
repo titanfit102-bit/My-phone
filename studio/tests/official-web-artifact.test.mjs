@@ -33,6 +33,38 @@ test("official Expo single-bundle profile is prepared offline with opaque CSP an
   assert.match(result.srcDoc,/connect-src 'none'/);
   assert.doesNotMatch(result.srcDoc,/allow-same-origin/);
 });
+test("SEC-03 Expo rejects repeated inline PNG references before JS base64 memory amplification",async()=>{
+  const {crc32}=await import("node:zlib");
+  // Create one valid, highly-compressible ancillary PNG chunk. Its ZIP footprint
+  // is tiny, but repeated base64 inlining would otherwise exceed tens of MiB.
+  const payload=new Uint8Array(300*1024);
+  payload.set(new TextEncoder().encode("Comment\0"),0);
+  payload.fill(120,8);
+  const chunk=new Uint8Array(12+payload.length),view=new DataView(chunk.buffer);
+  view.setUint32(0,payload.length,false);
+  chunk.set([116,69,88,116],4); // tEXt ancillary PNG chunk.
+  chunk.set(payload,8);
+  view.setUint32(8+payload.length,crc32(chunk.subarray(4,8+payload.length)),false);
+  const beforeIend=png.subarray(0,png.length-12);
+  const largePng=new Uint8Array(png.length+chunk.length);
+  largePng.set(beforeIend,0);
+  largePng.set(chunk,beforeIend.length);
+  largePng.set(png.subarray(png.length-12),beforeIend.length+chunk.length);
+  const files=expoFiles();
+  // 48 repetitions * ~400 KiB base64 would create >16 MiB generated JS.
+  files[2]={...files[2],content:Array.from({length:48},(_,i)=>
+    'const image'+i+'={uri:"'+asset+'"};').join("")};
+  files[3]={...files[3],bytes:largePng,method:8};
+  await assert.rejects(
+    buildExpoWebArtifactPreview(makeZip(files)),
+    /bundle JS i gjeneruar tejkalon kufirin 16 MiB/
+  );
+  // A single valid reference still produces a usable preview.
+  files[2]={...files[2],content:'const image={uri:"'+asset+'"};'};
+  const safe=await buildExpoWebArtifactPreview(makeZip(files));
+  assert.match(safe.srcDoc,/data:image\/png;base64,/);
+});
+
 test("root-level official Expo Web export is explicitly recognized and prepared",async()=>{
   const zip=makeZip(expoFiles(""));
   const inspection=inspectZip(zip,"root.zip");
