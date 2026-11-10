@@ -94,3 +94,15 @@ test("SEC-04 external Web preview still uses opaque sandbox on the same real com
   assert.equal(rendered.props.sandbox, "allow-scripts allow-forms");
   assert.equal(rendered.props.referrerPolicy, "no-referrer");
 });
+
+test("SEC-04 direct native sink fails closed if a future caller bypasses TypeScript at runtime", () => {
+  const rendered = renderPreviewHost({
+    url: {href: "https://appetize.io/embed/abc12345"},
+    variant: "native",
+    revision: 4,
+    title: "Synthetic",
+  });
+  assert.equal(rendered.type, "View");
+  assert.equal(rendered.props.children.type, "Text");
+  assert.equal(rendered.props.children.props.children, "Lidhja Appetize nuk është e vlefshme.");
+});
