@@ -1,4 +1,4 @@
-// Fail-closed production dependency audit. A05 removed the previous High
+// Fail-closed full dependency audit, including devDependencies. A05 removed the previous High
 // findings, so no temporary High/Critical advisory exceptions are permitted.
 // Moderate findings are reported unchanged for independent risk review.
 import {spawnSync} from "node:child_process";
@@ -56,7 +56,7 @@ export function evaluateAudit(data) {
 }
 
 export function auditCli() {
-  const run = spawnSync("npm",["audit","--omit=dev","--json"],{
+  const run = spawnSync("npm",["audit","--include=dev","--json"],{
     encoding:"utf8",maxBuffer:12*1024*1024,timeout:60000
   });
   if (run.error || !run.stdout) throw new Error(
