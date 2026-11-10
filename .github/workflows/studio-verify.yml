@@ -46,6 +46,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Verify dependency graph
         run: npm ls --depth=0
+      - name: Gate tracked secrets, dangerous runtime sinks and ZIP sandbox/CSP invariants
+        run: npm run check:security-static
       - name: Gate new or critical advisories (reviewed upstream exceptions only)
         run: node scripts/verify-security-audit.mjs
       - name: Verify Studio and repository isolation

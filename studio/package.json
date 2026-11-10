@@ -8,6 +8,7 @@
     "web": "expo start --web",
     "export:web": "node scripts/export-web.mjs && node scripts/emit-build-info.mjs",
     "check:config": "node --test tests/*.test.mjs",
+    "check:security-static": "node --test tests/static-security.test.mjs && node scripts/check-static-security.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test"
   },
