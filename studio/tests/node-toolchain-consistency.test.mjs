@@ -24,7 +24,7 @@ test("SEC-13 Studio export guard accepts Node 24 and rejects unsafe/future major
   assert.equal(assertStudioBuildNodeVersion("v24.11.1"),"v24.11.1");
   assert.equal(assertStudioBuildNodeVersion("24.0.0"),"24.0.0");
   for (const bad of ["v22.14.0","v26.0.0","v25.0.0","24.x","v24.1.0-beta","",null,{},0]) {
-    assert.throws(()=>assertStudioBuildNodeVersion(bad),/requires Node.js 24\\.x/);
+    assert.throws(()=>assertStudioBuildNodeVersion(bad),/requires Node.js 24\.x/);
   }
   assert.equal(assertStudioBuildNodeVersion(process.version),process.version);
 });
