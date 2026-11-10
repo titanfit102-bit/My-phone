@@ -227,7 +227,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     '<style>html,body,#root{min-height:100%;margin:0}</style><style>'+style+
     '</style></head><body><div id="root"></div><script>'+
     escapeTag(sessionStorageShim,"script")+'</script><script type="module">'+
-    safeCode+'</script></body></html>';
+    escapeTag(code,"script")+'</script></body></html>';
   return {filename,indexPath:index,srcDoc,cssCount:css.length,localAssetCount:cache.size,
     warning:"Vetëm ZIP i besuar: Quick Preview nuk ofron izolim të plotë rrjeti/CPU; navigimi i iframe-it mund të nisë kërkesa. API/backend dhe module të tjera mund të mos funksionojnë."};
 }
@@ -385,7 +385,7 @@ export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
     '<meta http-equiv="Content-Security-Policy" content="'+policy+'">'+
     '<style>html,body,#root{height:100%;margin:0}#root{display:flex;min-height:100%}</style>'+
-    '</head><body><div id="root"></div><script>'+escapeTag(code,"script")+'</script></body></html>';
+    '</head><body><div id="root"></div><script>'+safeCode+'</script></body></html>';
   return {filename,indexPath:index,srcDoc,cssCount:0,localAssetCount:availableImages.length,
     profile:"expo-metro-single-offline",
     warning:"Vetëm ZIP Expo i besuar: izolimi i rrjetit dhe CPU-së nuk garantohet për navigim brenda iframe-it. Mbështeten vetëm Metro single bundle dhe PNG lokale, pa backend/Router."};
