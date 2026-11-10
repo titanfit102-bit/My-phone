@@ -7,6 +7,8 @@ const MAX_TOTAL_ASSET_BYTES=3*1024*1024;
 // Count every replacement, including cache hits: a small stylesheet can repeat
 // one large data URI thousands of times despite a bounded unique-asset cache.
 const MAX_EMBEDDED_CSS_BYTES=8*1024*1024;
+// Bound output *after* repeated PNG base64 substitution, not just input assets.
+const MAX_EMBEDDED_JS_BYTES=16*1024*1024;
 const encoder=new TextEncoder();
 const MIME_BY_EXT={
   png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",
@@ -225,7 +227,7 @@ export async function buildQuickPreview(buffer,filename="preview.zip"){
     '<style>html,body,#root{min-height:100%;margin:0}</style><style>'+style+
     '</style></head><body><div id="root"></div><script>'+
     escapeTag(sessionStorageShim,"script")+'</script><script type="module">'+
-    escapeTag(code,"script")+'</script></body></html>';
+    safeCode+'</script></body></html>';
   return {filename,indexPath:index,srcDoc,cssCount:css.length,localAssetCount:cache.size,
     warning:"Vetëm ZIP i besuar: Quick Preview nuk ofron izolim të plotë rrjeti/CPU; navigimi i iframe-it mund të nisë kërkesa. API/backend dhe module të tjera mund të mos funksionojnë."};
 }
@@ -343,11 +345,18 @@ export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"
   for(const path of availableImages)allowed.add(path);
   if([...all.keys()].some(path=>!allowed.has(path)))
     reject("Expo Web ZIP ka skedarë të pambështetur për profilin offline.");
-  const refs=[...code.matchAll(/uri:"(\/assets\/[^"\\]+)"/g)].map(m=>m[1]);
-  if(new Set(refs).size!==availableImages.length)
+  // Counting without materializing all regex matches bounds reference bookkeeping.
+  // A single allowed PNG may occur many times in a Metro JS bundle, and naive
+  // replaceAll() can amplify it far past the unique-image byte budget.
+  const refCounts=new Map();
+  for(const match of code.matchAll(/uri:"(\/assets\/[^"\\]+)"/g)){
+    const ref=match[1];
+    refCounts.set(ref,(refCounts.get(ref)||0)+1);
+  }
+  if(refCounts.size!==availableImages.length)
     reject("Expo ka imazhe të papërdorura ose referenca të pambështetura.");
-  let total=0;
-  for(const ref of new Set(refs)){
+  let total=0,embeddedJsBytes=encoder.encode(code).length;
+  for(const [ref,occurrences] of refCounts){
     if(!/^\/assets\/[A-Za-z0-9._/-]+\.png$/.test(ref) || ref.includes(".."))
       reject("Expo ka referencë imazhi të pasigurt.");
     const path=prefix+ref.slice(1);
@@ -355,9 +364,22 @@ export async function buildExpoWebArtifactPreview(buffer,filename="expo-web.zip"
     const bytes=await getBytes(buffer,all.get(path),MAX_ASSET_BYTES);
     total+=bytes.length;
     if(total>MAX_TOTAL_ASSET_BYTES)reject("Expo tejkalon kufirin e imazheve.");
+    const original='uri:"'+ref+'"';
+    const replacementLength='uri:"data:image/png;base64,'.length+
+      Math.ceil(bytes.length/3)*4+1; // Closing quote.
+    const projected=embeddedJsBytes+occurrences*
+      (replacementLength-encoder.encode(original).length);
+    // Reject BEFORE constructing one potentially enormous replacement string.
+    if(projected>MAX_EMBEDDED_JS_BYTES)
+      reject("Expo bundle JS i gjeneruar tejkalon kufirin 16 MiB.");
     await verifyPngStructure(bytes);
-    code=code.replaceAll('uri:"'+ref+'"','uri:"data:image/png;base64,'+toBase64(bytes)+'"');
+    code=code.replaceAll(original,'uri:"data:image/png;base64,'+toBase64(bytes)+'"');
+    embeddedJsBytes=projected;
   }
+  // Escaping a closing script tag can grow the result further: count it too.
+  const safeCode=escapeTag(code,"script");
+  if(encoder.encode(safeCode).length>MAX_EMBEDDED_JS_BYTES)
+    reject("Expo bundle JS i gjeneruar tejkalon kufirin 16 MiB.");
   const policy="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'";
   const srcDoc='<!doctype html><html><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
