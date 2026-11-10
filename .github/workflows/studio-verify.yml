@@ -9,14 +9,10 @@ on:
       - "templates/**"
       - "README.md"
       - ".github/workflows/**"
+  # Always emit the stable expo-web job for any PR targeting main. A required
+  # GitHub check must not be absent merely because a file-path filter skipped it.
   pull_request:
     branches: [main]
-    paths:
-      - "studio/**"
-      - "docs/**"
-      - "templates/**"
-      - "README.md"
-      - ".github/workflows/**"
 
 permissions:
   contents: read
@@ -29,9 +25,11 @@ jobs:
       run:
         working-directory: studio
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
           cache: npm
@@ -58,7 +56,7 @@ jobs:
         run: npm run test:e2e
       - name: Upload Playwright traces and screenshots on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: my-phone-studio-playwright-failures
           path: |
@@ -67,7 +65,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Archive Expo Web export for visual smoke tests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: my-phone-expo-web-dist
           path: studio/dist/
