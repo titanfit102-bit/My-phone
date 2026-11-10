@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import {runInNewContext} from "node:vm";
 import ts from "typescript";
-import {cleanAppetizeEmbed} from "../src/project-model.js";
+import {cleanAppetizeEmbed, cleanWebUrl} from "../src/project-model.js";
 
 // Render the *actual* PreviewHost component with attacker-controlled props.
 // The test-only JSX/React Native stubs return element descriptions; no browser,
@@ -30,7 +30,7 @@ const permittedImports = Object.freeze({
     Text: "Text",
     StyleSheet: {create: styles => styles},
   },
-  "./project-model": {cleanAppetizeEmbed},
+  "./project-model": {cleanAppetizeEmbed, cleanWebUrl},
 });
 const componentModule = {exports: {}};
 runInNewContext(compiled.outputText, {
@@ -105,4 +105,47 @@ test("SEC-04 direct native sink fails closed if a future caller bypasses TypeScr
   assert.equal(rendered.type, "View");
   assert.equal(rendered.props.children.type, "Text");
   assert.equal(rendered.props.children.props.children, "Lidhja Appetize nuk është e vlefshme.");
+});
+
+test("SEC-04 direct Web sink preserves a validated deployed HTTPS preview URL", () => {
+  const url = "https://preview.example.test/app?tab=home&myphone_refresh=12";
+  const rendered = renderPreviewHost({url, variant: "web", revision: 12, title: "Synthetic"});
+  assert.equal(rendered.type, "iframe");
+  assert.equal(rendered.props.src, url);
+  assert.equal(rendered.props.sandbox, "allow-scripts allow-forms");
+  assert.equal(rendered.props.referrerPolicy, "no-referrer");
+});
+
+const rejectedWebURLs = [
+  ["HTTP", "http://preview.example.test/app"],
+  ["script scheme", "javascript:alert(1)"],
+  ["data scheme", "data:text/html,<script>alert(1)</script>"],
+  ["protocol relative", "//preview.example.test/app"],
+  ["embedded credentials", "https://user:secret@preview.example.test/app"],
+  ["secret fragment", "https://preview.example.test/app#secret"],
+  ["nonstandard port", "https://preview.example.test:8443/app"],
+  ["non-string object", {href: "https://preview.example.test/app"}],
+];
+for (const [description, url] of rejectedWebURLs) {
+  test("SEC-04 direct Web sink denies " + description + " without an iframe", () => {
+    // Bypasses normal saved-project validation to test the actual privileged sink.
+    const rendered = renderPreviewHost({url, variant: "web", revision: 0, title: "Synthetic"});
+    assert.equal(rendered.type, "View");
+    assert.equal(rendered.props.children.type, "Text");
+    assert.equal(rendered.props.children.props.children, "Lidhja Web nuk është e vlefshme.");
+    assert.equal(JSON.stringify(rendered).includes("preview.example.test"), false);
+    assert.equal(JSON.stringify(rendered).includes("secret"), false);
+  });
+}
+test("SEC-04 unknown preview mode is rejected instead of inheriting native iframe privileges", () => {
+  // A future JavaScript caller can bypass the compile-time 'web' | 'native' union.
+  const rendered = renderPreviewHost({
+    url: "https://preview.example.test/app",
+    variant: "external-native-bypass",
+    revision: 1,
+    title: "Synthetic",
+  });
+  assert.equal(rendered.type, "View");
+  assert.equal(rendered.props.children.type, "Text");
+  assert.equal(rendered.props.children.props.children, "Modaliteti i preview nuk është i vlefshëm.");
 });
