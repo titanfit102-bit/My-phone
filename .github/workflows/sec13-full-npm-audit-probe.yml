@@ -1,0 +1,69 @@
+name: SEC-13 read-only full npm advisory inventory (isolated probe)
+
+on:
+  push:
+    branches: [security/full-npm-audit-probe]
+    paths:
+      - .github/workflows/sec13-full-npm-audit-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  full-npm-advisory-inventory:
+    if: github.repository == 'titanfit102-bit/My-phone' && github.ref == 'refs/heads/security/full-npm-audit-probe'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Compare all dependencies vs omit-dev without installation or script execution
+        run: |
+          node --input-type=module <<'NODE'
+          import {spawnSync} from 'node:child_process';
+          function audit(args) {
+            const p=spawnSync('npm',['audit','--json',...args],{
+              encoding:'utf8',maxBuffer:16*1024*1024,timeout:70000
+            });
+            if(p.error || !p.stdout) throw Error('npm audit invocation failed: '+(p.error?.message||p.status));
+            const data=JSON.parse(p.stdout);
+            if(data.error || !data.vulnerabilities || !data.metadata?.vulnerabilities)
+              throw Error('Invalid audit response: '+(data.error?.code||'no count'));
+            const counts=data.metadata.vulnerabilities;
+            for(const key of ['critical','high','moderate','low']) {
+              if(!Number.isInteger(counts[key]) || counts[key]<0)
+                throw Error('Invalid '+key+' severity count');
+            }
+            const summary=Object.entries(data.vulnerabilities).map(([name,v])=>({
+              package:name,severity:v.severity,isDirect:!!v.isDirect,
+              via: (v.via||[]).filter(x=>x&&typeof x==='object').map(x=>({
+                id:String(x.url||'').match(/GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}/i)?.[0]||'unknown',
+                severity:x.severity
+              })).slice(0,12)
+            }));
+            return {counts,packages:summary};
+          }
+          const all=audit([]);
+          const prod=audit(['--omit=dev']);
+          const devOnly=all.packages.filter(x=>!prod.packages.some(y=>y.package===x.package));
+          console.log('FULL_DEPENDENCY_AUDIT_COMPARISON');
+          console.log(JSON.stringify({
+            all:all.counts,
+            omitDev:prod.counts,
+            newPackagePathsWhenIncludingDev:devOnly,
+            highOrCriticalAll:all.packages.filter(x=>['high','critical'].includes(x.severity)),
+            moderateAll:all.packages.filter(x=>x.severity==='moderate')
+          },null,2));
+          if(all.counts.high || all.counts.critical)
+            throw Error('Full npm audit reports High/Critical paths: NOT ready for full-dependency zero-High gate');
+          if(prod.counts.high || prod.counts.critical)
+            throw Error('Unexpected production audit regression');
+          console.log('PASS: full+production npm advisory inventories have 0 High/Critical');
+          NODE
