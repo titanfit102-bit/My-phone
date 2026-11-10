@@ -6,7 +6,7 @@
   "scripts": {
     "start": "expo start",
     "web": "expo start --web",
-    "export:web": "expo export --platform web && node scripts/emit-build-info.mjs",
+    "export:web": "node scripts/verify-node-runtime.mjs && expo export --platform web && node scripts/emit-build-info.mjs",
     "check:config": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test"
@@ -25,6 +25,6 @@
     "typescript": "~5.9.0"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": "24.x"
   }
 }
