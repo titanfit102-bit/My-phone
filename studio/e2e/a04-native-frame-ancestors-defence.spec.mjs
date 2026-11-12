@@ -59,3 +59,63 @@ test("SEC-04 Studio response headers block native provider same-origin iframe na
   expect(await page.evaluate(()=>document.documentElement.dataset.sec04Escaped)).toBeUndefined();
   await expect(page).toHaveURL(studioOrigin+"/");
 });
+
+
+// Differential NEGATIVE CONTROL: no CSP/XFO response headers means the same
+// native iframe sandbox still allows an attacker-controlled same-frame
+// navigation into the Studio origin. This must pass by OBSERVING the unsafe
+// behavior, not by falsely claiming that the baseline policy is secure.
+// PR44 separately retains the intentionally RED required security acceptance.
+test("SEC-04 negative control: without anti-framing response headers native redirect reaches Studio origin",async({page})=>{
+  await page.goto("/");
+  const studioOrigin=new URL(page.url()).origin;
+  const target=studioOrigin+"/__sec04_native_frame_unprotected_control";
+  await page.evaluate(()=>{
+    localStorage.setItem("SEC04_NATIVE_UNPROTECTED_CONTROL","can-read");
+    delete document.documentElement.dataset.sec04NegativeControl;
+  });
+
+  let providerRequests=0;
+  let targetRequests=0;
+  // Never contact external Appetize. Redirect happens only in a synthetic
+  // Playwright-fulfilled response, and target response stays on localhost.
+  await page.route("https://appetize.io/**",route=>{
+    providerRequests++;
+    return route.fulfill({status:200,contentType:"text/html",
+      body:"<!doctype html><script>location.replace("+JSON.stringify(target)+")</script>"});
+  });
+  await page.route(target,route=>{
+    targetRequests++;
+    return route.fulfill({status:200,contentType:"text/html",body:[
+      '<!doctype html><div id="native-unprotected-control"></div><script>',
+      'const state={origin:self.origin,parentReadable:false,storageValue:null};',
+      'try{state.parentReadable=!!parent.document.body}catch{}',
+      'try{state.storageValue=localStorage.getItem("SEC04_NATIVE_UNPROTECTED_CONTROL")}catch{}',
+      'document.getElementById("native-unprotected-control").textContent=JSON.stringify(state);',
+      '</script>'
+    ].join("")});
+  });
+
+  await page.getByRole("button",{name:"+ Shto",exact:true}).click();
+  await page.getByPlaceholder("P.sh. ILLYRIAN").fill("Unprotected Control");
+  await page.getByPlaceholder("https://github.com/owner/app")
+    .fill("https://github.com/example/synthetic-unprotected-control");
+  await page.getByPlaceholder("https://appetize.io/embed/BUILD_ID")
+    .fill("https://appetize.io/embed/abc12345");
+  await page.getByRole("button",{name:"Shto projektin"}).click();
+
+  const iframe=page.locator('iframe[title="Unprotected Control · Android cloud"]');
+  await expect(iframe).toHaveAttribute("src","https://appetize.io/embed/abc12345");
+  await expect(iframe).toHaveAttribute("sandbox",
+    "allow-scripts allow-same-origin allow-forms allow-popups");
+  await expect.poll(()=>providerRequests).toBeGreaterThanOrEqual(1);
+  await expect.poll(()=>targetRequests).toBeGreaterThanOrEqual(1);
+  const probe=page.frameLocator('iframe[title="Unprotected Control · Android cloud"]')
+    .locator("#native-unprotected-control");
+  await expect(probe).toHaveText(JSON.stringify({
+    origin:studioOrigin,parentReadable:true,storageValue:"can-read"
+  }));
+  await expect(page).toHaveURL(studioOrigin+"/");
+  expect(await page.evaluate(()=>localStorage.getItem("SEC04_NATIVE_UNPROTECTED_CONTROL")))
+    .toBe("can-read");
+});
