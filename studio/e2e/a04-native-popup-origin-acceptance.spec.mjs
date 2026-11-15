@@ -54,6 +54,8 @@ test("SEC-04 REQUIRED: Appetize popup must not regain Studio origin despite CSP 
     .locator("#open-native-popup").click();
   const popup=await popupEvent;
   await expect(popup).toHaveURL(target);
+  // frame-ancestors is a framing restriction; this is a TOP-LEVEL popup.
+  expect(await popup.evaluate(()=>self===top)).toBe(true);
   const result=popup.locator("#sec04-popup-state");
   await expect(result).not.toBeEmpty();
   const state=JSON.parse(await result.innerText());
