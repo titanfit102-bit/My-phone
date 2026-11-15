@@ -1,12 +1,16 @@
 import {test,expect} from "@playwright/test";
 
 // Appetize URL is locally intercepted: no paid session or vendor API is invoked.
-test("SEC-04 Appetize native iframe uses exact provider embed URL and keeps legacy session policy",async({page})=>{
+test("SEC-04 Appetize iframe opaque origin permits synthetic scripts but blocks browser storage",async({page})=>{
   let providerRequests=0;
   await page.route("https://appetize.io/**", async route=>{
     providerRequests++;
     await route.fulfill({status:200,contentType:"text/html",body:
-      '<!doctype html><h1 data-testid="appetize-fixture">Appetize synthetic embed</h1>'});
+      '<!doctype html><h1 data-testid="appetize-fixture">Appetize synthetic embed</h1><script>'+
+      'document.body.dataset.embedOrigin=self.origin;'+
+      'try{localStorage.setItem("SEC04_PROVIDER_STORAGE","x");document.body.dataset.storageAccessible="yes"}'+
+      'catch{document.body.dataset.storageAccessible="no"}'+
+      '</script>'});
   });
   await page.goto("/");
   await page.getByRole("button",{name:"+ Shto",exact:true}).click();
@@ -18,9 +22,12 @@ test("SEC-04 Appetize native iframe uses exact provider embed URL and keeps lega
   await expect(locator).toHaveAttribute("src","https://appetize.io/embed/abc12345");
   await expect(locator).toHaveAttribute("referrerpolicy","no-referrer");
   await expect(locator).toHaveAttribute("sandbox",
-    "allow-scripts allow-same-origin allow-forms allow-popups");
+    "allow-scripts allow-forms allow-popups");
   await expect(page.frameLocator('iframe[title="Provider Sandbox · Android cloud"]')
     .getByTestId("appetize-fixture")).toBeVisible();
+  const providerBody=page.frameLocator('iframe[title="Provider Sandbox · Android cloud"]').locator("body");
+  await expect(providerBody).toHaveAttribute("data-embed-origin","null");
+  await expect(providerBody).toHaveAttribute("data-storage-accessible","no");
   expect(providerRequests).toBeGreaterThanOrEqual(1);
 });
 

@@ -45,10 +45,10 @@ test("SEC-04 Studio response headers block native provider same-origin iframe na
 
   const iframe=page.locator('iframe[title="Header Defense Proof · Android cloud"]');
   await expect(iframe).toHaveAttribute("src","https://appetize.io/embed/abc12345");
-  // Do not change vendor runtime permissions until compatibility has been
-  // tested. Here we prove the Studio's own response-level containment.
+  // Candidate removes allow-same-origin; vendor compatibility unverified.
+  // HTTP anti-framing headers remain a defense-in-depth layer.
   await expect(iframe).toHaveAttribute("sandbox",
-    "allow-scripts allow-same-origin allow-forms allow-popups");
+    "allow-scripts allow-forms allow-popups");
   await expect.poll(()=>providerRequests).toBeGreaterThanOrEqual(1);
   await expect.poll(()=>targetRequests).toBeGreaterThanOrEqual(1);
   const blocked=page.frameLocator('iframe[title="Header Defense Proof · Android cloud"]')
@@ -61,12 +61,10 @@ test("SEC-04 Studio response headers block native provider same-origin iframe na
 });
 
 
-// Differential NEGATIVE CONTROL: no CSP/XFO response headers means the same
-// native iframe sandbox still allows an attacker-controlled same-frame
-// navigation into the Studio origin. This must pass by OBSERVING the unsafe
-// behavior, not by falsely claiming that the baseline policy is secure.
-// PR44 separately retains the intentionally RED required security acceptance.
-test("SEC-04 negative control: without anti-framing response headers native redirect reaches Studio origin",async({page})=>{
+// OPAQUE ORIGIN ACCEPTANCE: without CSP/XFO, redirected native iframe HTML
+// must remain isolated from Studio DOM and browser storage. PR47 retains the
+// deliberately unsafe baseline negative-control evidence on its own Draft.
+test("SEC-04 opaque native iframe remains isolated even without response anti-framing headers",async({page})=>{
   await page.goto("/");
   const studioOrigin=new URL(page.url()).origin;
   const target=studioOrigin+"/__sec04_native_frame_unprotected_control";
@@ -107,13 +105,13 @@ test("SEC-04 negative control: without anti-framing response headers native redi
   const iframe=page.locator('iframe[title="Unprotected Control · Android cloud"]');
   await expect(iframe).toHaveAttribute("src","https://appetize.io/embed/abc12345");
   await expect(iframe).toHaveAttribute("sandbox",
-    "allow-scripts allow-same-origin allow-forms allow-popups");
+    "allow-scripts allow-forms allow-popups");
   await expect.poll(()=>providerRequests).toBeGreaterThanOrEqual(1);
   await expect.poll(()=>targetRequests).toBeGreaterThanOrEqual(1);
   const probe=page.frameLocator('iframe[title="Unprotected Control · Android cloud"]')
     .locator("#native-unprotected-control");
   await expect(probe).toHaveText(JSON.stringify({
-    origin:studioOrigin,parentReadable:true,storageValue:"can-read"
+    origin:"null",parentReadable:false,storageValue:null
   }));
   await expect(page).toHaveURL(studioOrigin+"/");
   expect(await page.evaluate(()=>localStorage.getItem("SEC04_NATIVE_UNPROTECTED_CONTROL")))
