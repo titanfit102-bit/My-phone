@@ -47,7 +47,7 @@ test("SEC-04 REQUIRED: Appetize popup must not regain Studio origin despite CSP 
 
   const iframe=page.locator('iframe[title="Native Popup Probe · Android cloud"]');
   await expect(iframe).toHaveAttribute("sandbox",
-    "allow-scripts allow-same-origin allow-forms allow-popups");
+    "allow-scripts allow-forms allow-popups");
   await expect(iframe).toHaveAttribute("src","https://appetize.io/embed/abc12345");
   const popupEvent=page.waitForEvent("popup",{timeout:12000});
   await page.frameLocator('iframe[title="Native Popup Probe · Android cloud"]')
