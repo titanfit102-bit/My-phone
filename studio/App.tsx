@@ -416,6 +416,7 @@ export default function App() {
               <View style={styles.greenDot}/><Text style={styles.statusText}>{current&&previewUrl?"URL e lidhur · shfaqja në iframe e paverifikuar":"Në pritje të lidhjes"}</Text></View>
               {current&&previewUrl&&<RoundButton label="↗ Hap jashtë studios" onPress={()=>link(currentMode==="native"?current.native:current.web)}/>}
               {currentMode==="web"&&current&&previewUrl&&<Text style={styles.infoSmall}>Nëse iframe është bosh ose i bllokuar nga CSP/X-Frame-Options, hape jashtë Studios. URL e lidhur nuk provon ngarkim të suksesshëm.</Text>}
+              {currentMode==="native"&&current&&previewUrl&&<Text style={styles.infoSmall}>Pamja Android Cloud përdor iframe të izoluar. Ruajtja në shfletues ose hyrja në Appetize mund të mos funksionojë brenda tij. Nëse pamja nuk hapet, përdor “Hap jashtë studios”.</Text>}
               <Text style={styles.infoSmall}>{currentMode==="web"?"CHECK 15s · FALLBACK 60s": "NATIVE BUILD: LINK I FIKSUAR"}</Text>
               {currentMode==="web"&&syncEnabled&&<RoundButton label={freezeEnabled?"Çaktivizo Session Freeze":"Aktivizo Session Freeze"} onPress={toggleFreeze}/>}
               {currentMode==="web"&&<RoundButton label={syncEnabled?"⏸ Ndalo auto":"▶ Aktivizo auto"} onPress={()=>setSyncEnabled(x=>!x)}/>}

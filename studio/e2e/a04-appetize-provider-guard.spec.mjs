@@ -28,6 +28,11 @@ test("SEC-04 Appetize iframe opaque origin permits synthetic scripts but blocks 
   const providerBody=page.frameLocator('iframe[title="Provider Sandbox · Android cloud"]').locator("body");
   await expect(providerBody).toHaveAttribute("data-embed-origin","null");
   await expect(providerBody).toHaveAttribute("data-storage-accessible","no");
+  // UI must disclose the possible compatibility trade-off and offer the
+  // already available external-open fallback without starting a paid session.
+  await expect(page.getByText(/Pamja Android Cloud përdor iframe të izoluar/)).toBeVisible();
+  await expect(page.getByRole("button",{name:/Hap jashtë studios/})).toBeVisible();
+  await expect(locator).not.toHaveAttribute("src",/autoplay=true/i);
   expect(providerRequests).toBeGreaterThanOrEqual(1);
 });
 
