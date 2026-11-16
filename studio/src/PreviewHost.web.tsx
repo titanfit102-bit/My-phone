@@ -23,8 +23,10 @@ export default function PreviewHost({url, variant, revision, title}: Props) {
   // Untrusted third-party Web URLs must use an opaque origin, because combining
   // allow-scripts + allow-same-origin can permit sandbox escape after navigation
   // to the Studio origin. Apps requiring third-party storage may need external open.
-  // Appetize is a separately constrained provider embed; preserve its legacy
-  // sandbox settings until that integration has a dedicated compatibility review.
+  // SEC-04 candidate: allow scripts/forms/popups, but never same-origin.
+  // Native popups inherit opaque-origin sandbox without escape permissions.
+  // WARNING: provider cookies/storage/SSO compatibility remains UNVERIFIED.
+  // Keep this isolated Draft until real Appetize integration acceptance.
   // Do not append query params to Appetize: a build link identifies a particular APK version.
   return (
     <iframe
@@ -34,7 +36,7 @@ export default function PreviewHost({url, variant, revision, title}: Props) {
       loading="eager"
       referrerPolicy="no-referrer"
       allow="fullscreen; clipboard-write"
-      sandbox={variant === "web" ? "allow-scripts allow-forms" : "allow-scripts allow-same-origin allow-forms allow-popups"}
+      sandbox={variant === "web" ? "allow-scripts allow-forms" : "allow-scripts allow-forms allow-popups"}
       style={{border: 0, width: "100%", height: "100%", backgroundColor: variant === "native" ? "#101626" : "#FFFFFF"}}
     />
   );

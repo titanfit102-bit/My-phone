@@ -56,8 +56,10 @@ test("SEC-04 direct sink: canonical Appetize URL creates only expected provider 
   assert.equal(rendered.type, "iframe");
   assert.equal(rendered.props.src, "https://appetize.io/embed/abc12345");
   assert.equal(rendered.props.referrerPolicy, "no-referrer");
-  assert.equal(rendered.props.sandbox, "allow-scripts allow-same-origin allow-forms allow-popups");
+  assert.equal(rendered.props.sandbox, "allow-scripts allow-forms allow-popups");
   assert.equal(rendered.props.title, "Synthetic · Android cloud");
+  assert.equal(rendered.props.sandbox.includes("allow-same-origin"), false);
+  assert.equal(rendered.props.sandbox.includes("allow-popups-to-escape-sandbox"), false);
 });
 
 const rejectedNativeURLs = [
